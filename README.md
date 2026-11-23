@@ -59,7 +59,9 @@ A full or unavailable database can prevent even the failure state from being wri
 
 The integration and browser scripts create, migrate and drop a disposable database. The browser check needs installed Google Chrome and free ports 3174 and 3175. Each labeled case has its own history scope. The report shows the expected labels alongside observed decisions, queries and products. Execution errors and unscored dimensions are reported separately from semantic disagreements.
 
-On 23 November 2026, one fresh PostgreSQL fixture run passed **9/9 cases**. Intent matched **9/9**, product constraints **7/7**, and abstention with zero catalog lookups **2/2**. First content took **6–28 ms**, total **7–32 ms**. A separate single production turn returned one real product with one intent call, one catalog call and one reply call. First content took **4,527 ms**, total **6,712 ms**. First content measures server emission of the first card or text, excluding status. Both timings describe those runs on this machine. The production sample did not exercise the history planner or establish an accuracy rate.
+On 23 November 2026, one fresh PostgreSQL fixture run passed **9/9 cases**. Intent matched **9/9**, product constraints **7/7**, and abstention with zero catalog lookups **2/2**. First content took **6–28 ms**, total **7–32 ms**.
+
+One live production turn returned one real product with one intent call, one catalog call and one reply call. First content took **4,527 ms**, total **6,712 ms**. A separate live production turn routed “a few fragrances” to the planner with one synthetic earlier search for light fragrances. It saved a clarification with zero catalog calls. First content took **6,233 ms**, total **8,517 ms**. First content measures server emission of the first result group or text, excluding status. History-informed live retrieval and live accuracy remain unmeasured. [Delivery handoff](PROJECT_STATUS.md#verified)
 
 ## Limits and next steps
 

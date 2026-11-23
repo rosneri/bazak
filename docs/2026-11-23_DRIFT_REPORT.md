@@ -18,10 +18,10 @@ No drift detected.
 
 - The plan places SDK integration in the conversation feature. The feature instead owns typed model/planner ports and orchestration. The app owns the SDK so service-free tests and the evaluation runner use the same feature code. [Application service](../packages/features/conversation/src/application/chat.ts) · [SDK adapter](../apps/web/src/server/sdk.ts)
 - The planned per-attempt metrics can be unknown after a worker disappears. PostgreSQL preserves the attempt, start and cutoff and records expiry. Only a worker that reaches the terminal write records its call counts and measured first-content time. [Repository](../packages/adapters/evaluation-store/src/conversations.ts)
-- The proposed early live smoke included the history planner. The recorded production turn used intent, catalog and reply only. The live suite currently defines a fragrance prompt and an off-catalog prompt, neither of which triggers planning. Planner behavior is verified with injected and seeded cases. [Suite labels](../packages/features/evaluation/src/domain/cases.ts)
+- The first live production smoke used intent, catalog and reply. A separate live production turn reached the planner with seeded history and saved its clarification with an empty catalog query list. History-informed live retrieval remains unverified. The two labeled live-suite prompts exercise a concrete fragrance request and an off-catalog request. [Measured results](../PROJECT_STATUS.md#verified) · [Suite labels](../packages/features/evaluation/src/domain/cases.ts)
 - The schema guarantees at most three groups and ten cards per group. In live use, a friendly clarification for an oversized request depends on the intent model following its instructions. A malformed model decision fails the attempt. The fixture has an explicit clarification branch. [SDK prompt](../apps/web/src/server/sdk.ts) · [Fixture](../apps/web/src/server/fixtures.ts)
 
-- The three-page budget was exercised on synthetic pagination cases. The single live smoke is insufficient to establish how often that cap misses a better match across real categories. [Retrieval tests](../packages/features/product-discovery/src/application/discovery.test.ts)
+- The three-page budget was exercised on synthetic pagination cases. One live turn exercised catalog retrieval. How often the cap misses a better match across real categories remains unmeasured. [Retrieval tests](../packages/features/product-discovery/src/application/discovery.test.ts)
 
 ## docs/comprehension_report.md
 
@@ -29,7 +29,7 @@ No drift detected.
 
 ## docs/delivery-review.md
 
-- The review’s six findings address the earlier plan, and its starter-state description is historical. The retained live-planner verification gap is listed under the delivery plan.
+- The review’s six findings address the earlier plan, and its starter-state description is historical. The remaining gap in history-informed live retrieval is listed under the delivery plan.
 
 ## PROJECT_STATUS.md
 
