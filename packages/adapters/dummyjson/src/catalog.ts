@@ -8,6 +8,8 @@ import { approvedCatalogThumbnail } from "@bazak/dummyjson/thumbnail";
 
 const maxProducts = 20;
 
+const maxResponseBytes = 512 * 1024;
+
 const querySchema = catalogQuerySchema
   .extend({
     limit: catalogQuerySchema.shape.limit
@@ -60,6 +62,37 @@ function snapshot({ id, thumbnail, ...fields }: z.infer<typeof productSchema>, o
   });
 }
 
+async function readCatalogJson<Schema extends z.ZodType>(
+  response: Response,
+  schema: Schema,
+  signal?: AbortSignal,
+): Promise<z.output<Schema>> {
+  if (!response.body) {
+    signal?.throwIfAborted();
+    throw new Error("DummyJSON returned an empty response.");
+  }
+
+  const decoder = new TextDecoder();
+  let bytes = 0;
+  let json = "";
+
+  await response.body.pipeTo(
+    new WritableStream<Uint8Array>({
+      write(chunk) {
+        bytes += chunk.byteLength;
+
+        if (bytes > maxResponseBytes)
+          throw new Error("DummyJSON response exceeded the catalog byte limit.");
+        json += decoder.decode(chunk, { stream: true });
+      },
+    }),
+    { signal },
+  );
+  signal?.throwIfAborted();
+
+  return schema.parse(JSON.parse(json + decoder.decode()));
+}
+
 export function createDummyJsonCatalog(fetchCatalog: typeof fetch): ProductCatalog {
   return {
     async findPage(input, signal) {
@@ -76,13 +109,14 @@ export function createDummyJsonCatalog(fetchCatalog: typeof fetch): ProductCatal
       url.searchParams.set("skip", String(offset));
       url.searchParams.set("limit", String(limit));
 
-      const response = await fetchCatalog(url, { signal, redirect: "error" });
+      const response = await fetchCatalog(url, { signal, redirect: "error", cache: "no-store" });
 
       if (!response.ok) {
+        void response.body?.cancel().catch(() => {});
         throw new Error(`DummyJSON catalog request failed with HTTP ${response.status}.`);
       }
 
-      const page = pageSchema.parse(await response.json());
+      const page = await readCatalogJson(response, pageSchema, signal);
       const observedAt = new Date().toISOString();
 
       return {
@@ -97,15 +131,18 @@ export function createDummyJsonCatalog(fetchCatalog: typeof fetch): ProductCatal
       const response = await fetchCatalog(new URL("https://dummyjson.com/products/" + id), {
         signal,
         redirect: "error",
+        cache: "no-store",
       });
 
-      if (response.status === 404) return null;
+      if (!response.ok) {
+        void response.body?.cancel().catch(() => {});
 
-      if (!response.ok)
+        if (response.status === 404) return null;
         throw new Error(`DummyJSON catalog request failed with HTTP ${response.status}.`);
+      }
 
       const product = snapshot(
-        productSchema.parse(await response.json()),
+        await readCatalogJson(response, productSchema, signal),
         new Date().toISOString(),
       );
 

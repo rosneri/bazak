@@ -157,6 +157,7 @@ test("catalog requests disable redirects and constrain the page size", async () 
 test("only catalog raster thumbnails are accepted and an invalid image keeps the product", async () => {
   const known = "https://cdn.dummyjson.com/products/images/soap/thumbnail.webp";
   assert.equal(approvedCatalogThumbnail(known), known);
+  assert.equal(approvedCatalogThumbnail("Soap"), undefined);
   assert.equal(approvedCatalogThumbnail("https://example.com/catalog/soap.webp"), undefined);
   assert.equal(
     approvedCatalogThumbnail("https://cdn.dummyjson.com/product-images/soap.svg"),
@@ -181,4 +182,90 @@ test("only catalog raster thumbnails are accepted and an invalid image keeps the
   const product = await catalog.findById("7");
   assert.equal(product?.id, "7");
   assert.equal(product.imageUrl, undefined);
+});
+
+for (const operation of ["list", "detail"] as const) {
+  test(
+    "cancels an oversized catalog " + operation + " response with no declared length",
+    async () => {
+      const chunk = new Uint8Array(300 * 1024).fill(32);
+      let canceled = false;
+
+      const catalog = createDummyJsonCatalog(
+        async () =>
+          new Response(
+            new ReadableStream({
+              start(stream) {
+                stream.enqueue(chunk);
+                stream.enqueue(chunk);
+              },
+              cancel() {
+                canceled = true;
+              },
+            }),
+          ),
+      );
+
+      const reading =
+        operation === "list"
+          ? catalog.findPage({
+              source: { kind: "category", category: "fragrances" },
+              offset: 0,
+              limit: 20,
+            })
+          : catalog.findById("7");
+
+      await assert.rejects(reading, /exceeded the catalog byte limit/);
+      assert.equal(canceled, true);
+    },
+  );
+}
+
+test("a catalog body waiting on a chunk is canceled when the caller aborts", async () => {
+  const controller = new AbortController();
+  const stopped = new Error("Catalog read canceled");
+  let canceled = false;
+
+  const catalog = createDummyJsonCatalog(
+    async () =>
+      new Response(
+        new ReadableStream(
+          {
+            pull() {
+              controller.abort(stopped);
+            },
+            cancel() {
+              canceled = true;
+            },
+          },
+          { highWaterMark: 0 },
+        ),
+      ),
+  );
+
+  await assert.rejects(catalog.findById("7", controller.signal), (error) => error === stopped);
+  assert.equal(canceled, true);
+});
+
+test("catalog JSON decoding preserves a UTF-8 character split across chunks", async () => {
+  const json = new TextEncoder().encode(
+    JSON.stringify({ id: 7, title: "Café", description: "A warm fragrance.", price: 15, stock: 2 }),
+  );
+
+  const split = json.indexOf(0xc3) + 1;
+
+  const catalog = createDummyJsonCatalog(
+    async () =>
+      new Response(
+        new ReadableStream({
+          start(stream) {
+            stream.enqueue(json.slice(0, split));
+            stream.enqueue(json.slice(split));
+            stream.close();
+          },
+        }),
+      ),
+  );
+
+  assert.equal((await catalog.findById("7"))?.title, "Café");
 });
