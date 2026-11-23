@@ -12,10 +12,16 @@
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "doctor": "react-doctor --yes --scope full --blocking warning --no-telemetry --no-supply-chain",
-    "ui:check": "node node_modules/hallmark-ui/skills/hallmark/scripts/sloplint.mjs apps/web packages --scope app",
-    "db:up": "docker compose up --detach --wait",
+    "ui:check": "node node_modules/hallmark-ui/skills/hallmark/scripts/sloplint.mjs apps packages --scope app",
+    "db:up": "docker compose up --detach --wait && pnpm db:migrate",
     "db:down": "docker compose down",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm run doctor && pnpm ui:check && docker compose config --quiet && moon run :test :build"
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm run doctor && pnpm ui:check && docker compose config --quiet && moon run :test :build",
+    "dev:management": "pnpm --filter @bazak/management dev",
+    "start:management": "pnpm --filter @bazak/management start",
+    "db:migrate": "pnpm --filter @bazak/evaluation-store exec prisma migrate deploy",
+    "db:migrate:dev": "pnpm --filter @bazak/evaluation-store exec prisma migrate dev",
+    "db:generate": "pnpm --filter @bazak/evaluation-store exec prisma generate",
+    "db:studio": "pnpm --filter @bazak/evaluation-store exec prisma studio"
   },
   "devDependencies": {
     "@oxlint/plugins": "1.90.0",

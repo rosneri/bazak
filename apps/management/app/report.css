@@ -1,0 +1,334 @@
+/* Hallmark · scope: app · theme: Almanac · signature: case ledger with independently labeled evidence · built: project */
+/* Critique: keep the score denominator visible, align timing figures, and retain full evidence on narrow screens. */
+/* Hallmark · waive 49b · independently labeled case names wrap to two lines at 320px · the report displays the full stored case name so reviewers can trace its evidence */
+@import "@bazak/ui/globals.css";
+@source "./";
+
+:root {
+  --report-paper: oklch(97.5% 0.006 245);
+  --report-sheet: oklch(99.3% 0.003 245);
+  --report-ink: oklch(21% 0.022 245);
+  --report-muted: oklch(40% 0.018 245);
+  --report-rule: oklch(80% 0.013 245);
+  --report-strong: oklch(32% 0.02 245);
+  --report-accent: oklch(43% 0.16 350);
+  --report-current: oklch(95% 0.018 350);
+  --report-font: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --report-figures: "IBM Plex Mono", ui-monospace, monospace;
+}
+html,
+body {
+  overflow-x: clip;
+}
+body {
+  margin: 0;
+  color: var(--report-ink);
+  background: var(--report-paper);
+  font-family: var(--report-font);
+}
+:focus-visible {
+  outline: 2px solid var(--report-accent);
+  outline-offset: 3px;
+}
+.shell {
+  max-width: 80rem;
+  margin-inline: auto;
+  padding-inline: clamp(1rem, 4%, 3rem);
+}
+main {
+  padding-block: 2.8rem 5rem;
+}
+.topbar {
+  border-bottom: 1px solid var(--report-rule);
+  background: var(--report-sheet);
+}
+.topbar-inner {
+  min-height: 3.9rem;
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+}
+.wordmark {
+  font-size: 1.25rem;
+  font-weight: 750;
+  letter-spacing: -0.045em;
+  text-decoration: none;
+}
+.workspace {
+  border-left: 1px solid var(--report-rule);
+  padding-left: 1.2rem;
+  font-size: 0.9rem;
+  color: var(--report-muted);
+}
+h1,
+h2,
+h3 {
+  min-width: 0;
+  overflow-wrap: break-word;
+  margin: 0;
+  font-weight: 600;
+  line-height: 1.15;
+}
+h1 {
+  font-size: 2.2rem;
+  letter-spacing: -0.045em;
+}
+h2 {
+  font-size: 1.25rem;
+  letter-spacing: -0.025em;
+}
+h3 {
+  font-size: 1rem;
+}
+.page-heading,
+.report-heading,
+.section-heading,
+.control-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.page-heading {
+  align-items: flex-end;
+  margin-bottom: 2.7rem;
+}
+.page-heading p {
+  margin: 0.55rem 0 0;
+}
+.muted,
+.section-heading span,
+.report-heading span {
+  color: var(--report-muted);
+}
+form label {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-size: 0.875rem;
+}
+select {
+  border: 1px solid var(--report-muted);
+  padding: 0.45rem 0.7rem;
+  border-radius: 0.2rem;
+  background: var(--report-sheet);
+  min-height: 2.3rem;
+  font: inherit;
+  font-size: 0.88rem;
+  max-width: 100%;
+}
+.control-row {
+  justify-content: flex-start;
+  gap: 0.5rem;
+}
+.report-heading {
+  padding-bottom: 0.85rem;
+  border-bottom: 2px solid var(--report-strong);
+}
+.report-heading span,
+.section-heading span {
+  font-size: 0.86rem;
+}
+.scores {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0 0 2.6rem;
+  padding: 1.1rem 0;
+  background: var(--report-sheet);
+  border-bottom: 1px solid var(--report-rule);
+}
+.scores > div {
+  padding: 0.5rem 1.15rem;
+  border-inline-start: 1px solid var(--report-rule);
+}
+.scores > div:first-child {
+  border: 0;
+}
+dt {
+  color: var(--report-muted);
+  font-size: 0.875rem;
+}
+dd {
+  margin: 0;
+}
+.scores dd {
+  font-size: 2rem;
+  line-height: 1.15;
+  margin-top: 0.4rem;
+  letter-spacing: -0.05em;
+}
+.scores dd,
+.number,
+code,
+pre {
+  font-family: var(--report-figures);
+  font-variant-numeric: tabular-nums;
+}
+.scores dd span {
+  color: var(--report-muted);
+  font-size: 1.15rem;
+}
+.section-heading {
+  margin-bottom: 0.9rem;
+}
+.table-scroll {
+  max-width: 100%;
+  overflow: auto;
+  background: var(--report-sheet);
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.88rem;
+}
+th,
+td {
+  padding: 0.85rem 0.7rem;
+  border-bottom: 1px solid var(--report-rule);
+  text-align: left;
+  white-space: nowrap;
+  font-weight: 400;
+}
+thead th {
+  border-block: 1px solid var(--report-strong);
+  color: var(--report-muted);
+  font-size: 0.8rem;
+}
+tbody th {
+  font-weight: 550;
+}
+.number {
+  text-align: right;
+}
+a,
+summary {
+  text-underline-offset: 0.2em;
+}
+a:hover,
+summary:hover {
+  color: var(--report-accent);
+}
+tbody a,
+.evidence a,
+.notice a {
+  text-decoration: underline;
+}
+.attention {
+  color: var(--report-accent);
+  font-weight: 600;
+}
+tr[data-selected="true"] {
+  background: var(--report-current);
+}
+.notice,
+.evidence {
+  margin-top: 1.5rem;
+  border-top: 2px solid var(--report-strong);
+  padding: 1.5rem;
+  background: var(--report-sheet);
+}
+.notice p,
+.evidence p {
+  margin: 0.6rem 0 1rem;
+}
+.evidence blockquote {
+  border-left: 2px solid var(--report-accent);
+  margin: 1rem 0;
+  padding: 0.45rem 0.85rem;
+  font-size: 1.15rem;
+}
+.evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.8rem;
+  padding-block: 1rem;
+  border-block: 1px solid var(--report-rule);
+}
+.evidence-grid dd {
+  margin-top: 0.3rem;
+}
+.group {
+  margin-top: 1rem;
+}
+.group ul {
+  list-style: disc;
+  padding-left: 1.5rem;
+}
+details {
+  border-top: 1px solid var(--report-rule);
+  margin-top: 1.5rem;
+}
+summary {
+  cursor: pointer;
+  padding-block: 1rem;
+}
+pre {
+  overflow: auto;
+  padding: 1rem;
+  max-height: 28rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--report-paper);
+  font-size: 0.8rem;
+}
+@media (max-width: 40rem) {
+  main {
+    padding-block-start: 1.75rem;
+  }
+  .page-heading {
+    margin-bottom: 1.6rem;
+  }
+  .scores > div {
+    padding: 0.4rem 0.55rem;
+  }
+  .scores dd {
+    font-size: 1.65rem;
+  }
+  .scores dt {
+    font-size: 0.8rem;
+  }
+  .notice,
+  .evidence {
+    padding: 1rem;
+  }
+}
+
+h1,
+h2 {
+  text-wrap: balance;
+}
+a:active,
+summary:active {
+  color: var(--report-accent);
+}
+button:disabled,
+select:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+thead .number {
+  font-family: var(--report-font);
+}
+
+@media (max-width: 40rem) {
+  th:nth-child(n + 3):nth-child(-n + 6),
+  td:nth-child(n + 3):nth-child(-n + 6) {
+    display: none;
+  }
+  tbody th {
+    white-space: normal;
+  }
+  .control-row button,
+  .control-row select {
+    min-height: 2.75rem;
+  }
+}
+@media (max-width: 24rem) {
+  .table-scroll .number {
+    display: none;
+  }
+}
+.control-row button,
+.control-row select {
+  min-height: 2.75rem;
+}
