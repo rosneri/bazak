@@ -2,7 +2,7 @@
 
 ## Interface
 
-[chat.ts](./chat.ts) defines text messages. [turn.ts](./turn.ts) defines create, send and retry input, conversation history, assistant parts, attempt measurements and streamed events.
+`chat.ts` defines text messages. `turn.ts` defines send and retry commands, conversation history, assistant parts, attempt measurements and streamed events. [Text messages](./chat.ts) · [Conversation domain](./turn.ts) · [Shopper HTTP specification](../../../../../apps/web/openapi.yaml)
 
 ## Invariants
 

@@ -128,6 +128,88 @@ test("create, repeated create, list and load return the shopper's saved conversa
   assert.deepEqual(errors, []);
 });
 
+test("saved history preserves nullable attempts and complete ordered reply metadata", async () => {
+  const services = baseline();
+
+  const history = {
+    conversation,
+    turns: [
+      {
+        turnId,
+        text: "Find lamps.",
+        state: "completed",
+        attempt: 2,
+        assistant: {
+          parts: [
+            {
+              type: "products",
+              version: 1,
+              group: {
+                kind: "matched",
+                label: "Lamps",
+                criteria: { keywords: "lamp", count: 2 },
+                products: [
+                  {
+                    id: "42",
+                    title: "Desk lamp",
+                    description: "",
+                    price: 19.99,
+                    stock: 2,
+                    imageUrl: "https://example.com/lamp.png",
+                    observedAt: conversation.updatedAt,
+                  },
+                ],
+                coverage: "partial",
+                message: "One lamp matched.",
+              },
+            },
+            { type: "text", text: "Here is the lamp I found." },
+          ],
+        },
+        decision: {
+          kind: "discover",
+          searches: [
+            {
+              kind: "search",
+              label: "Lamps",
+              criteria: { keywords: "lamp", count: 2 },
+              readiness: "ready",
+            },
+          ],
+        },
+        metrics: {
+          intentCalls: 1,
+          plannerCalls: 0,
+          catalogCalls: 1,
+          replyCalls: 1,
+          queries: [{ source: { kind: "search", keywords: "lamp" }, offset: 0, limit: 2 }],
+          planner: ["skipped"],
+          firstVisibleMs: 100,
+          durationMs: 150,
+        },
+      },
+      {
+        turnId: crypto.randomUUID(),
+        text: "Find chairs.",
+        state: "running",
+        attempt: 1,
+        assistant: null,
+        decision: null,
+        metrics: null,
+      },
+    ],
+  } satisfies Awaited<ReturnType<ShopperServices["management"]["load"]>>;
+
+  services.management.load = async () => history;
+  const { api, errors } = setup(services);
+
+  const response = await api.load({ id });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), history);
+  assert.deepEqual(errors, []);
+});
+
 test("send streams versioned parts and committed completion as ordered UTF-8 data frames", async () => {
   const { api, errors } = setup();
   const response = await api.send(post({ turnId, text: "Find lamps." }), { id });
@@ -192,6 +274,51 @@ test("bad paths, invalid JSON, a blank message and invalid retry generations ret
       assert.equal((await response.json()).error.code, "invalid_input");
     }),
   );
+  assert.deepEqual(errors, []);
+});
+
+test("generated request validators reject extra properties and limits before initializing services", async () => {
+  const createExtra = { id, title: "Undocumented" };
+  const sendExtra = { turnId, text: "Find lamps.", state: "completed" };
+  const retryExtra = { expectedAttempt: 1, text: "Replacement text" };
+
+  const api = createConversationController({
+    getServices: () =>
+      assert.fail("Invalid requests must be rejected before initializing services."),
+    logger: { error: () => assert.fail("Invalid shopper input must not log a server error.") },
+  });
+
+  await Promise.all(
+    [
+      api.create(post(createExtra)),
+      api.send(post(sendExtra), { id }),
+      api.send(post({ turnId, text: "😀".repeat(4_001) }), { id }),
+      api.retry(post(retryExtra), { id, turnId }),
+      api.retry(post({ expectedAttempt: Number.MAX_SAFE_INTEGER + 1 }), { id, turnId }),
+    ].map(async (pending) => {
+      const response = await pending;
+      assert.equal(response.status, 400);
+      assert.equal((await response.json()).error.code, "invalid_input");
+    }),
+  );
+});
+
+test("send preserves leading and trailing shopper whitespace at the length limit", async () => {
+  const text = " " + "😀".repeat(3_998) + " ";
+  const services = baseline();
+  services.chat.send = async (thread, input) => {
+    assert.equal(thread, id);
+    assert.deepEqual(input, { turnId, text });
+
+    return events([status]);
+  };
+
+  const { api, errors } = setup(services);
+
+  const response = await api.send(post({ turnId, text }), { id });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await Array.fromAsync(readTurnStream(response)), [status]);
   assert.deepEqual(errors, []);
 });
 

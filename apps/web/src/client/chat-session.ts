@@ -1,11 +1,28 @@
-import type {
-  Conversation,
-  ConversationHistory,
-  MessagePart,
-  Turn,
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useQueryClient, type QueryClient } from "@tanstack/react-query";
+import {
+  conversationHistorySchema,
+  type ConversationHistory,
+  type MessagePart,
+  type Turn,
 } from "@bazak/conversation/domain/turn";
-import { createChat, listChats, loadChat, RequestProblem, retryTurn, submitTurn } from "./api.ts";
-import { readTurnStream } from "./stream.ts";
+import {
+  getConversation,
+  getGetConversationQueryKey,
+  getGetConversationQueryOptions,
+  getListConversationsQueryKey,
+  useCreateConversation,
+  useGetConversation,
+  useListConversations,
+  useRetryTurn,
+  useSendTurn,
+} from "../api/generated/hooks";
+import type { ConversationListResponse } from "../api/generated/models";
+import { RequestProblem } from "../api/fetch";
+import { readTurnStream } from "./stream";
 
 interface Preview {
   turnId: string;
@@ -14,185 +31,163 @@ interface Preview {
   unsaved: boolean;
 }
 
-interface Session {
-  id: string | null;
-  list: Conversation[];
-  history: ConversationHistory | null;
-  draft: string;
-  notice: string;
-  busy: boolean;
-  loading: boolean;
-  inaccessible: boolean;
-  preview: Preview | null;
-}
+export function useShoppingSession(initialId: string | null, onCreate?: (id: string) => void) {
+  const queryClient = useQueryClient();
+  const router = useRouter();
+  const [id, setId] = useState(initialId);
+  const [draft, setDraft] = useState("");
+  const [notice, setNotice] = useState("");
+  const [preview, setPreview] = useState<Preview | null>(null);
+  const [working, setWorking] = useState(false);
+  const [pausedAttempt, setPausedAttempt] = useState<string | null>(null);
+  const action = useRef<AbortController | null>(null);
+  const pendingCreate = useRef<string | null>(null);
+  const pendingSend = useRef<{ id: string; text: string } | null>(null);
+  const listQuery = useListConversations();
 
-export class ChatSession {
-  private listeners = new Set<() => void>();
-  private controller = new AbortController();
-  private state: Session;
-  private pendingCreate = cryptoId();
-  private pendingSend: { id: string; text: string } | null = null;
-  constructor(id: string | null) {
-    this.state = {
-      id,
-      list: [],
-      history: null,
-      draft: "",
-      notice: "",
-      busy: false,
-      loading: true,
-      inaccessible: false,
-      preview: null,
-    };
-  }
-  subscribe = (listen: () => void) => {
-    this.listeners.add(listen);
+  const historyQuery = useGetConversation(id ?? "", {
+    query: { enabled: id !== null, select: conversationHistorySchema.parse },
+  });
 
-    return () => {
-      this.listeners.delete(listen);
-    };
-  };
-  snapshot = () => this.state;
-  private update(patch: Partial<Session>) {
-    this.state = { ...this.state, ...patch };
+  const mutationOptions = useMemo(
+    () => ({
+      request: {
+        // The stream remains part of the action after its mutation receives the response headers.
+        get signal() {
+          return action.current?.signal;
+        },
+      },
+    }),
+    [],
+  );
 
-    for (const notify of this.listeners) notify();
-  }
-  draft = (text: string) => this.update({ draft: text });
-  start() {
+  const { mutateAsync: create } = useCreateConversation(mutationOptions);
+  const { mutateAsync: submitTurn } = useSendTurn(mutationOptions);
+  const { mutateAsync: retryTurn } = useRetryTurn(mutationOptions);
+
+  const history = historyQuery.data;
+  const activeAttempt = runningAttempt(history);
+  const recovering = activeAttempt !== null && pausedAttempt !== activeAttempt;
+  const busy = working || recovering;
+  const loading = id ? historyQuery.isPending : listQuery.isPending;
+  const inaccessible = id !== null && historyQuery.isError && !history;
+  const savedPreview = preview && wasCompleted(history, preview.turnId);
+
+  useEffect(
+    () => () => {
+      action.current?.abort();
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!id || !recovering || working) return;
     const controller = new AbortController();
-    this.controller = controller;
-    void this.refresh(controller.signal);
+    const { signal } = controller;
 
-    return () => controller.abort();
-  }
-  private async refresh(signal: AbortSignal) {
-    try {
-      const { id } = this.state;
+    void reconcile(queryClient, id, signal)
+      .then((saved) => {
+        if (signal.aborted) return;
+        const pending = runningAttempt(saved);
 
-      const [chats, thread] = await Promise.allSettled([
-        listChats(signal),
-        id ? loadChat(id, signal) : null,
-      ]);
-
-      signal.throwIfAborted();
-
-      if (chats.status === "fulfilled") this.update({ list: chats.value });
-
-      if (thread.status === "rejected") throw thread.reason;
-      const history = thread.value;
-      this.update({
-        history,
-        loading: false,
-        inaccessible: false,
-        notice: chats.status === "rejected" ? notice(chats.reason) : "",
+        if (pending) {
+          setPausedAttempt(pending);
+          setNotice(waitingNotice);
+        }
+      })
+      .catch((cause) => {
+        if (signal.aborted) return;
+        setPausedAttempt(activeAttempt);
+        setNotice(errorNotice(cause));
       });
 
-      if (id && history?.turns.some((turn) => turn.state === "running"))
-        await this.reconcile(id, signal);
-    } catch (cause) {
-      if (!signal.aborted)
-        this.update({
-          loading: false,
-          notice: notice(cause),
-          inaccessible: !!this.state.id && !this.state.history,
-        });
-    }
+    return () => controller.abort();
+  }, [id, recovering, working, activeAttempt, queryClient]);
+
+  function beginAction() {
+    if (busy || action.current) return null;
+    const controller = new AbortController();
+    action.current = controller;
+    setWorking(true);
+    setNotice("");
+
+    return controller;
   }
-  reload = async () => {
-    if (this.state.busy) return;
-    this.update({ notice: "", loading: true });
-    await this.refresh(this.controller.signal);
-  };
-  private async ensureChat(signal: AbortSignal) {
-    if (this.state.id) return this.state.id;
-    const conversation = await createChat(this.pendingCreate, signal);
+
+  function finishAction(controller: AbortController) {
+    if (action.current !== controller) return;
+    action.current = null;
+
+    if (!controller.signal.aborted) setWorking(false);
+  }
+
+  async function createChat(signal: AbortSignal) {
+    pendingCreate.current ??= crypto.randomUUID();
+    const { conversation } = await create({ data: { id: pendingCreate.current } });
     signal.throwIfAborted();
-    this.pendingCreate = cryptoId();
-    window.history.replaceState(null, "", "/conversations/" + conversation.id);
-    this.update({
-      id: conversation.id,
-      history: { conversation, turns: [] },
-      list: [conversation, ...this.state.list.filter((chat) => chat.id !== conversation.id)],
-    });
+    pendingCreate.current = null;
+    queryClient.setQueryData<ConversationListResponse>(
+      getListConversationsQueryKey(),
+      (previous) => ({
+        conversations: [
+          conversation,
+          ...(previous?.conversations.filter((chat) => chat.id !== conversation.id) ?? []),
+        ],
+      }),
+    );
+    queryClient.setQueryData<ConversationHistory>(
+      getGetConversationQueryKey(conversation.id),
+      (previous) => previous ?? { conversation, turns: [] },
+    );
 
     return conversation.id;
   }
-  newChat = async () => {
-    if (this.state.busy) return;
-    const signal = this.controller.signal;
-    this.update({ busy: true, notice: "" });
+
+  async function newChat() {
+    const controller = beginAction();
+
+    if (!controller) return;
 
     try {
-      const thread = await createChat(this.pendingCreate, signal);
-      window.location.assign("/conversations/" + thread.id);
+      const threadId = await createChat(controller.signal);
+      router.push("/conversations/" + threadId);
     } catch (cause) {
-      if (!signal.aborted) this.update({ busy: false, notice: notice(cause) });
-    }
-  };
-  private async reconcile(id: string, signal: AbortSignal) {
-    const cutoff = Date.now() + 93_000;
-    this.update({ busy: true });
-
-    try {
-      for (let wait = 250; ; wait = Math.min(2000, wait * 2)) {
-        // oxlint-disable-next-line no-await-in-loop -- Each authoritative read decides whether another poll is needed.
-        const history = await loadChat(id, signal);
-        signal.throwIfAborted();
-        const active = history.turns.some((turn) => turn.state === "running");
-        this.update({ history });
-
-        if (!active) {
-          if (
-            this.state.preview &&
-            history.turns.some(
-              (t) => t.turnId === this.state.preview?.turnId && t.state === "completed",
-            )
-          )
-            this.update({ preview: null });
-          break;
-        }
-
-        if (Date.now() >= cutoff) {
-          this.update({ notice: "The reply is still pending. Refresh to check its saved status." });
-          break;
-        }
-
-        // oxlint-disable-next-line no-await-in-loop -- Back off between status requests.
-        await new Promise<void>((resolve) => window.setTimeout(resolve, wait));
-        signal.throwIfAborted();
-      }
-
-      const list = await listChats(signal);
-
-      if (!signal.aborted) this.update({ list });
+      if (!controller.signal.aborted) setNotice(errorNotice(cause));
     } finally {
-      if (!signal.aborted) this.update({ busy: false });
+      finishAction(controller);
     }
   }
-  send = async (text = this.state.draft) => {
-    if (this.state.loading || this.state.busy || this.state.inaccessible || !text.trim()) return;
 
-    if (this.pendingSend?.text !== text) this.pendingSend = { id: cryptoId(), text };
-    const input = this.pendingSend;
-    await this.run(input.id, text);
-  };
-  retry = async (turn: Turn) => {
-    if (this.state.busy || !["failed", "interrupted"].includes(turn.state)) return;
-    await this.run(turn.turnId, turn.text, turn.attempt);
-  };
-  private async run(turnId: string, text: string, attempt?: number) {
-    const signal = this.controller.signal;
-    this.update({ busy: true, notice: "", preview: null });
-    let id = this.state.id;
+  async function run(turnId: string, text: string, attempt?: number) {
+    const controller = beginAction();
+
+    if (!controller) return;
+    const { signal } = controller;
+    setPreview(null);
+    let threadId = id;
     let accepted = false;
+    let replyAttempt = attempt === undefined ? 1 : attempt + 1;
+
+    function accept() {
+      accepted = true;
+
+      if (attempt === undefined) {
+        pendingSend.current = null;
+        setDraft((current) => (current === text ? "" : current));
+      }
+    }
 
     try {
-      id = await this.ensureChat(signal);
+      if (!threadId) {
+        threadId = await createChat(signal);
+        onCreate?.(threadId);
+        setId(threadId);
+      }
 
-      const response = attempt
-        ? await retryTurn(id, turnId, attempt, signal)
-        : await submitTurn(id, turnId, text, signal);
+      const response =
+        attempt === undefined
+          ? await submitTurn({ id: threadId, data: { turnId, text } })
+          : await retryTurn({ id: threadId, turnId, data: { expectedAttempt: attempt } });
 
       let terminal = false;
 
@@ -202,97 +197,194 @@ export class ChatSession {
         if (event.turnId !== turnId) continue;
 
         if (event.type === "status") {
-          accepted = true;
-          this.pendingSend = null;
-          this.update({
-            draft: attempt ? this.state.draft : "",
-            preview: { turnId, text, parts: [], unsaved: false },
-          });
-          continue;
-        }
-
-        if (event.type === "done") {
+          accept();
+          replyAttempt = event.attempt;
+          setPreview({ turnId, text, parts: [], unsaved: false });
+        } else if (event.type === "done") {
           terminal = true;
+          const queryKey = getGetConversationQueryKey(threadId);
+          await queryClient.cancelQueries({ queryKey, exact: true });
+          signal.throwIfAborted();
 
           const done: Turn = {
             turnId,
             text,
             state: "completed",
-            attempt: attempt ? attempt + 1 : 1,
+            attempt: replyAttempt,
             assistant: event.assistant,
             metrics: null,
             decision: null,
           };
 
-          const history = this.state.history;
-
-          if (history)
-            this.update({
-              history: {
-                ...history,
-                turns: [...history.turns.filter((t) => t.turnId !== turnId), done],
-              },
-              preview: null,
-            });
+          queryClient.setQueryData<ConversationHistory>(
+            queryKey,
+            (previous) => previous && { ...previous, turns: replaceTurn(previous.turns, done) },
+          );
+          setPreview(null);
+          break;
         } else if (event.type === "error") {
-          this.update({
-            notice: event.message,
-            preview: this.state.preview ? { ...this.state.preview, unsaved: true } : null,
-          });
           terminal = true;
-        } else if (this.state.preview) {
+          setNotice(event.message);
+          setPreview(markUnsaved);
+          break;
+        } else {
           const part: MessagePart =
             event.type === "products" ? event.part : { type: "text", text: event.text };
 
-          this.update({
-            preview: { ...this.state.preview, parts: appendDelta(this.state.preview.parts, part) },
-          });
+          setPreview(
+            (current) => current && { ...current, parts: appendDelta(current.parts, part) },
+          );
         }
       }
 
-      if (!terminal && this.state.preview)
-        this.update({ preview: { ...this.state.preview, unsaved: true } });
+      if (!terminal) setPreview(markUnsaved);
     } catch (cause) {
       if (signal.aborted) return;
-      this.update({
-        notice: notice(cause),
-        preview: this.state.preview ? { ...this.state.preview, unsaved: true } : null,
-      });
+      setNotice(errorNotice(cause));
+      setPreview(markUnsaved);
     } finally {
-      if (id && !signal.aborted) {
+      if (threadId && !signal.aborted) {
         try {
-          await this.reconcile(id, signal);
+          const saved = await reconcile(queryClient, threadId, signal);
 
-          if (!accepted && this.state.history?.turns.some((t) => t.turnId === turnId)) {
-            this.pendingSend = null;
+          if (!accepted && saved.turns.some((turn) => turn.turnId === turnId && turn.text === text))
+            accept();
 
-            if (!attempt) this.update({ draft: "" });
-          }
+          const pending = runningAttempt(saved);
+          setPausedAttempt(pending);
 
-          if (this.state.preview && !this.state.preview.parts.length)
-            this.update({ preview: null });
+          if (pending) setNotice(waitingNotice);
         } catch (cause) {
-          if (!signal.aborted)
-            this.update({
-              notice: notice(cause),
-              preview: this.state.preview ? { ...this.state.preview, unsaved: true } : null,
-            });
+          if (!signal.aborted) {
+            setNotice(errorNotice(cause));
+            setPreview(markUnsaved);
+          }
         }
+
+        if (!signal.aborted) setPreview((current) => (current?.parts.length ? current : null));
       }
 
-      if (!signal.aborted) this.update({ busy: false });
+      finishAction(controller);
     }
+  }
+
+  function send() {
+    if (loading || busy || inaccessible || action.current || !draft.trim()) return;
+
+    if (pendingSend.current?.text !== draft)
+      pendingSend.current = { id: crypto.randomUUID(), text: draft };
+
+    return run(pendingSend.current.id, draft);
+  }
+
+  function retry(turn: Turn) {
+    if (turn.state === "failed" || turn.state === "interrupted")
+      return run(turn.turnId, turn.text, turn.attempt);
+  }
+
+  function reload() {
+    if (busy) return;
+    setNotice("");
+    setPausedAttempt(null);
+    void listQuery.refetch();
+
+    if (id) void historyQuery.refetch();
+  }
+
+  return {
+    id,
+    history,
+    list: listQuery.data?.conversations ?? [],
+    listLoading: listQuery.isPending,
+    draft,
+    notice: notice || errorNotice(historyQuery.error ?? listQuery.error),
+    busy,
+    loading,
+    inaccessible,
+    preview: savedPreview ? null : preview,
+    setDraft,
+    send,
+    retry,
+    newChat,
+    reload,
+  };
+}
+
+const waitingNotice = "The reply is still pending. Refresh to check its saved status.";
+
+function runningAttempt(history?: ConversationHistory) {
+  const running = history?.turns.find((turn) => turn.state === "running");
+
+  return running ? running.turnId + "/" + running.attempt : null;
+}
+
+async function reconcile(queryClient: QueryClient, id: string, signal: AbortSignal) {
+  const cutoff = Date.now() + 93_000;
+
+  const options = getGetConversationQueryOptions(id, {
+    query: {
+      queryFn: ({ signal: querySignal }) =>
+        getConversation(id, { signal: AbortSignal.any([signal, querySignal]) }),
+    },
+  });
+
+  await queryClient.cancelQueries({ queryKey: options.queryKey, exact: true });
+
+  try {
+    for (let delay = 250; ; delay = Math.min(2000, delay * 2)) {
+      signal.throwIfAborted();
+      // oxlint-disable-next-line no-await-in-loop -- Each saved status decides whether another read is needed.
+      const response = await queryClient.fetchQuery(options);
+      signal.throwIfAborted();
+      const saved = conversationHistorySchema.parse(response);
+
+      if (!runningAttempt(saved) || Date.now() >= cutoff) return saved;
+
+      // oxlint-disable-next-line no-await-in-loop -- Back off between status requests.
+      await waitForNextRead(delay, signal);
+    }
+  } finally {
+    if (!signal.aborted)
+      void queryClient.invalidateQueries({ queryKey: getListConversationsQueryKey(), exact: true });
   }
 }
 
-function notice(cause: unknown) {
+function waitForNextRead(delay: number, signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    function abort() {
+      window.clearTimeout(timer);
+      reject(signal.reason);
+    }
+
+    const timer = window.setTimeout(() => {
+      signal.removeEventListener("abort", abort);
+      resolve();
+    }, delay);
+
+    signal.addEventListener("abort", abort, { once: true });
+  });
+}
+
+function errorNotice(cause: unknown) {
+  if (!cause) return "";
+
   return cause instanceof RequestProblem
     ? cause.message
     : "Couldn’t confirm the saved chat. Check the connection and try again.";
 }
 
-function cryptoId() {
-  return globalThis.crypto.randomUUID();
+function markUnsaved(preview: Preview | null) {
+  return preview && { ...preview, unsaved: true };
+}
+
+function wasCompleted(history: ConversationHistory | undefined, turnId: string) {
+  return history?.turns.some((turn) => turn.turnId === turnId && turn.state === "completed");
+}
+
+function replaceTurn(turns: Turn[], next: Turn) {
+  return turns.some((turn) => turn.turnId === next.turnId)
+    ? turns.map((turn) => (turn.turnId === next.turnId ? next : turn))
+    : [...turns, next];
 }
 
 function appendDelta(parts: MessagePart[], part: MessagePart): MessagePart[] {

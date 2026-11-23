@@ -10,7 +10,7 @@ The shopping desk opens at `/`. A chat has a permanent `/conversations/[id]` URL
 
 ## Requests and replies
 
-The [route table](../../docs/delivery-plan.md#shopper-http-and-browser) specifies create, list, load, send, retry and their status codes. The browser generates thread and turn UUIDs before sending. Accepted submissions return UTF‑8 SSE with one JSON object per data frame. A new turn emits status and then product groups or text deltas. Only a committed reply emits done. The client reconciles a lost stream with the stored turn and can retry a failed generation. A busy thread keeps the unsent draft.
+OpenAPI defines create, list, load, send, and retry, along with their JSON responses and stream events. The browser generates thread and turn UUIDs before sending. Accepted submissions return UTF‑8 SSE with one JSON object per data frame. A new turn emits status and then product groups or text deltas. Only a committed reply emits done. The client reconciles a lost stream with the stored turn and can retry a failed generation. A busy thread keeps the unsent draft. [OpenAPI specification](./openapi.yaml)
 
 An assistant message contains an ordered `parts` array. Each part is either plain text or a registered `{type: "products", version: 1, group}` object. A group carries the label, criteria, coverage, outcome, shopper message, and verified product snapshots. The same React component renders live product events and saved messages. The application controls the surface registry and all catalog facts. This local message format supports one versioned product surface.
 

@@ -1,4 +1,5 @@
 import { turnEventSchema, type TurnEvent } from "@bazak/conversation/domain/turn";
+import { TurnEvent as WireTurnEvent } from "../api/generated/models";
 
 export async function* readTurnStream(response: Response): AsyncGenerator<TurnEvent> {
   if (
@@ -26,7 +27,11 @@ export async function* readTurnStream(response: Response): AsyncGenerator<TurnEv
           .split(/\r?\n/)
           .flatMap((line) => (line.startsWith("data:") ? [line.slice(5).trimStart()] : []));
 
-        if (lines.length) yield turnEventSchema.parse(JSON.parse(lines.join("\n")));
+        if (lines.length) {
+          const wireEvent = WireTurnEvent.parse(JSON.parse(lines.join("\n")));
+          yield turnEventSchema.parse(wireEvent);
+        }
+
         boundary = buffer.match(/\r?\n\r?\n/);
       }
 

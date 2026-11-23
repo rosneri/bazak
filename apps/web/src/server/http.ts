@@ -2,13 +2,20 @@ import type { ZodSafeParseResult, ZodType } from "zod";
 import type { ConversationEvent, TurnErrorCode } from "@bazak/conversation/application/chat";
 import { RepositoryError, type RepositoryCode } from "@bazak/conversation/application/repository";
 import {
-  createConversationInputSchema,
-  sendTurnInputSchema,
-  retryTurnInputSchema,
-  idSchema,
   turnEventSchema,
-  type TurnEvent,
+  type TurnEvent as DomainTurnEvent,
 } from "@bazak/conversation/domain/turn";
+import {
+  ApiErrorResponse,
+  ConversationListResponse,
+  ConversationResponse,
+  CreateConversationInput,
+  Identifier,
+  RetryTurnInput,
+  SavedConversation,
+  SendTurnInput,
+  TurnEvent,
+} from "../api/generated/models.ts";
 import type { ConversationTransportLogger, ConversationTransportOperation } from "./logger.ts";
 import type { ShopperServices } from "./services.ts";
 
@@ -105,10 +112,10 @@ export function createConversationController({ getServices, logger }: Controller
       if (status >= 500 && !wasAborted(cause, signal))
         logger.error({ operation, phase: "http", code, status });
 
-      return Response.json(
-        { error: { code, message } },
-        { status, headers: { "Cache-Control": "no-store" } },
-      );
+      return Response.json(ApiErrorResponse.parse({ error: { code, message } }), {
+        status,
+        headers: { "Cache-Control": "no-store" },
+      });
     }
   }
 
@@ -127,8 +134,10 @@ export function createConversationController({ getServices, logger }: Controller
     let onAbort: () => void;
     let cleanup: Promise<void> | undefined;
 
-    function frame(event: TurnEvent) {
-      return encoder.encode("data: " + JSON.stringify(turnEventSchema.parse(event)) + "\n\n");
+    function frame(event: DomainTurnEvent) {
+      const payload = TurnEvent.parse(turnEventSchema.parse(event));
+
+      return encoder.encode("data: " + JSON.stringify(payload) + "\n\n");
     }
 
     function stop() {
@@ -234,7 +243,7 @@ export function createConversationController({ getServices, logger }: Controller
         const { management } = await getServices();
 
         return Response.json(
-          { conversations: await management.list() },
+          ConversationListResponse.parse({ conversations: await management.list() }),
           { headers: { "Cache-Control": "no-store" } },
         );
       }),
@@ -242,22 +251,24 @@ export function createConversationController({ getServices, logger }: Controller
       respond(
         "create",
         async () => {
-          const { id } = await parseBody(createConversationInputSchema, request);
+          const { id } = await parseBody(CreateConversationInput, request);
           // Reject malformed requests before initializing services.
           // react-doctor-disable-next-line react-doctor/server-sequential-independent-await
           const { management } = await getServices();
           const { created, conversation } = await management.create(id);
 
-          return Response.json({ conversation }, { status: created ? 201 : 200 });
+          return Response.json(ConversationResponse.parse({ conversation }), {
+            status: created ? 201 : 200,
+          });
         },
         request.signal,
       ),
     load: (params: ConversationPath | Promise<ConversationPath>) =>
       respond("load", async () => {
-        const id = parseInput(idSchema.safeParse((await params).id));
+        const id = parseInput(Identifier.safeParse((await params).id));
         const { management } = await getServices();
 
-        return Response.json(await management.load(id), {
+        return Response.json(SavedConversation.parse(await management.load(id)), {
           headers: { "Cache-Control": "no-store" },
         });
       }),
@@ -265,8 +276,8 @@ export function createConversationController({ getServices, logger }: Controller
       respond(
         "send",
         async () => {
-          const id = parseInput(idSchema.safeParse((await params).id));
-          const input = await parseBody(sendTurnInputSchema, request);
+          const id = parseInput(Identifier.safeParse((await params).id));
+          const input = await parseBody(SendTurnInput, request);
           // Reject malformed requests before initializing services.
           // react-doctor-disable-next-line react-doctor/server-sequential-independent-await
           const { chat } = await getServices();
@@ -280,9 +291,9 @@ export function createConversationController({ getServices, logger }: Controller
         "retry",
         async () => {
           const path = await params;
-          const id = parseInput(idSchema.safeParse(path.id));
-          const turnId = parseInput(idSchema.safeParse(path.turnId));
-          const { expectedAttempt } = await parseBody(retryTurnInputSchema, request);
+          const id = parseInput(Identifier.safeParse(path.id));
+          const turnId = parseInput(Identifier.safeParse(path.turnId));
+          const { expectedAttempt } = await parseBody(RetryTurnInput, request);
           // Reject malformed requests before initializing services.
           // react-doctor-disable-next-line react-doctor/server-sequential-independent-await
           const { chat } = await getServices();

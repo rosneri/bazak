@@ -2,15 +2,15 @@
 
 ## Interface
 
-[ChatSession](./chat-session.ts) drives create, send, retry and reload. [api.ts](./api.ts) makes same-origin requests. [readTurnStream](./stream.ts) decodes and validates SSE frames.
+[useShoppingSession](./chat-session.ts) uses the five [generated Orval hooks](../api/generated/hooks.ts) and reads saved status through the generated query options. [The query provider](./query-provider.tsx) holds the browser cache for the shopper layout. [Fetch adapters](../api/fetch.ts) validate JSON and expose the successful response stream. [readTurnStream](./stream.ts) validates each decoded event against the generated schema and the conversation's domain rules.
 
 ## Invariants
 
-Previews reconcile to the authoritative saved state. An unaccepted competing submission keeps its draft. Adjacent text deltas form a single passage.
+Saved history is cached by conversation ID. Previews and in-flight actions belong to the mounted conversation. An unaccepted competing submission keeps its draft and message ID. Adjacent text deltas form a single passage.
 
 ## Side effects
 
-Fetch calls read and mutate server state. Creating a thread changes the browser URL. On a lost response, polling backs off until completion or the local cutoff.
+Creating a thread changes the browser URL. Navigating away cancels the active request and pending recovery work. On a lost response, saved history is polled with backoff until completion or the local cutoff. Mutations run once per explicit action, so a repeated click can recover an uncertain request with the same ID.
 
 ## Verification
 

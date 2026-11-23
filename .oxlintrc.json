@@ -39,6 +39,17 @@
     "anti-slop/require-readable-spacing": "error",
     "anti-slop/require-safety-comment-for-type-assertion": "error"
   },
+  "overrides": [
+    {
+      "files": ["apps/web/src/api/generated/*.ts"],
+      "rules": {
+        "anti-slop/no-unknown-returns": "off",
+        "anti-slop/no-unsafe-dictionary-type": "off",
+        "anti-slop/require-readable-spacing": "off",
+        "anti-slop/require-safety-comment-for-type-assertion": "off"
+      }
+    }
+  ],
   "ignorePatterns": [
     "tools/oxlint/anti-slop/**",
     "**/.next/**",

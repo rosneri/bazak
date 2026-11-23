@@ -6,7 +6,7 @@
 
 ## Invariants
 
-Both build profiles use the same controller, conversation service and PostgreSQL repository. Requests and outgoing SSE events use domain schemas. The controller maps application error codes to shopper-facing responses. Only a committed turn emits `done`.
+Both build profiles use the same controller, conversation service and PostgreSQL repository. The controller uses generated Zod schemas to validate request bodies, path identifiers, JSON responses and outgoing SSE payloads. Conversation domain schemas enforce business rules for stored history and emitted content. The controller maps application error codes to shopper-facing responses. Only a committed turn emits `done`. [OpenAPI specification](../../openapi.yaml)
 
 ## Side effects
 

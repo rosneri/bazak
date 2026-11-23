@@ -1,14 +1,23 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { FormEvent } from "react";
 import { Button } from "@bazak/ui/components/button";
-import { ChatSession } from "../client/chat-session";
+import { useShoppingSession } from "../client/chat-session";
 import { AssistantParts } from "./product-card";
 import type { Turn } from "@bazak/conversation/domain/turn";
 
 const examples = ["Two fragrances under $50", "Find a desk lamp"];
+
+type ShoppingSession = ReturnType<typeof useShoppingSession>;
+
+interface HomeRoute {
+  pathname: string;
+  session: number;
+  createdPath: string | null;
+}
 
 const activityDate = new Intl.DateTimeFormat("en", {
   month: "short",
@@ -48,19 +57,12 @@ function TranscriptTurn({
   );
 }
 
-function Transcript({
-  state,
-  session,
-}: {
-  state: ReturnType<ChatSession["snapshot"]>;
-  session: ChatSession;
-}) {
-  const { history, preview } = state;
+function Transcript({ session }: { session: ShoppingSession }) {
+  const { history, preview, retry, busy } = session;
   const empty = !history?.turns.length && !preview;
 
   return (
     <>
-      {" "}
       {!empty && (
         <h1 className="conversation-heading">
           {history?.conversation.title === "New chat"
@@ -70,7 +72,7 @@ function Transcript({
       )}
       {history?.turns.map((turn) =>
         preview?.turnId === turn.turnId && !preview.unsaved ? null : (
-          <TranscriptTurn key={turn.turnId} turn={turn} retry={session.retry} busy={state.busy} />
+          <TranscriptTurn key={turn.turnId} turn={turn} retry={retry} busy={busy} />
         ),
       )}
       {preview && (
@@ -88,43 +90,32 @@ function Transcript({
   );
 }
 
-function SavedChats({
-  state,
-  session,
-  menu,
-}: {
-  state: ReturnType<ChatSession["snapshot"]>;
-  session: ChatSession;
-  menu: boolean;
-}) {
+function SavedChats({ session, menu }: { session: ShoppingSession; menu: boolean }) {
+  const { busy, id, list, listLoading, newChat } = session;
+
   return (
     <aside id="chat-history" className={menu ? "sidebar open" : "sidebar"}>
       <div className="sidebar-top">
         <h2>Saved chats</h2>
-        <Button
-          variant="outline"
-          onClick={session.newChat}
-          disabled={state.busy}
-          className="new-chat"
-        >
+        <Button variant="outline" onClick={newChat} disabled={busy} className="new-chat">
           <span aria-hidden="true">＋</span> New chat
         </Button>
       </div>
       <nav aria-label="Chat history">
-        {state.list.map((chat) => (
+        {list.map((chat) => (
           <Link
             href={"/conversations/" + chat.id}
             key={chat.id}
-            aria-current={chat.id === state.id ? "page" : undefined}
+            aria-current={chat.id === id ? "page" : undefined}
           >
             <span>{chat.title}</span>
             <time dateTime={chat.updatedAt}>{activityDate.format(new Date(chat.updatedAt))}</time>
           </Link>
         ))}
       </nav>
-      {!state.list.length && (
+      {!list.length && (
         <p className="sidebar-note">
-          {state.loading ? "Loading chats…" : "Your conversations will appear here."}
+          {listLoading ? "Loading chats…" : "Your conversations will appear here."}
         </p>
       )}
     </aside>
@@ -132,13 +123,44 @@ function SavedChats({
 }
 
 export function ShoppingChat({ initialId }: { initialId: string | null }) {
-  const [session] = useState(() => new ChatSession(initialId));
+  return initialId === null ? <HomeShoppingChat /> : <ShoppingDesk initialId={initialId} />;
+}
+
+function HomeShoppingChat() {
+  const pathname = usePathname();
+  const [route, setRoute] = useState<HomeRoute>({ pathname, session: 0, createdPath: null });
+
+  // The home route can stay mounted when Next restores its history entry.
+  if (pathname !== route.pathname)
+    setRoute({
+      pathname,
+      session: pathname === route.createdPath ? route.session : route.session + 1,
+      createdPath: null,
+    });
+
+  function openCreatedConversation(id: string) {
+    const createdPath = "/conversations/" + id;
+    setRoute((current) => ({ ...current, createdPath }));
+    window.history.replaceState(null, "", createdPath);
+  }
+
+  const id = pathname.match(/^\/conversations\/([^/]+)$/)?.[1] ?? null;
+
+  return <ShoppingDesk key={route.session} initialId={id} onCreate={openCreatedConversation} />;
+}
+
+function ShoppingDesk({
+  initialId,
+  onCreate,
+}: {
+  initialId: string | null;
+  onCreate?: (id: string) => void;
+}) {
+  const session = useShoppingSession(initialId, onCreate);
   const [menu, setMenu] = useState(false);
-  const state = useSyncExternalStore(session.subscribe, session.snapshot, session.snapshot);
   const transcript = useRef<HTMLDivElement>(null);
   const readingEnd = useRef(true);
   const composer = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => session.start(), [session]);
   useEffect(() => {
     const pane = transcript.current;
 
@@ -155,9 +177,9 @@ export function ShoppingChat({ initialId }: { initialId: string | null }) {
 
     return () => observer.disconnect();
   }, []);
-  const { history, preview } = state;
+  const { busy, draft, history, inaccessible, loading, notice, preview, setDraft } = session;
   const empty = !history?.turns.length && !preview;
-  const blocked = state.busy || state.loading || state.inaccessible;
+  const blocked = busy || loading || inaccessible;
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -186,7 +208,7 @@ export function ShoppingChat({ initialId }: { initialId: string | null }) {
           {menu ? "Close history" : "History"}
         </Button>
       </header>
-      <SavedChats menu={menu} state={state} session={session} />
+      <SavedChats menu={menu} session={session} />
       <main className="workspace">
         <div
           className="transcript"
@@ -197,12 +219,12 @@ export function ShoppingChat({ initialId }: { initialId: string | null }) {
           }}
         >
           <div className="conversation">
-            {state.loading && (
+            {loading && (
               <p role="status" className="status">
                 Opening the shopping desk…
               </p>
             )}
-            {!state.loading && !state.inaccessible && empty && (
+            {!loading && !inaccessible && empty && (
               <div className="welcome">
                 <span className="welcome-mark" aria-hidden="true">
                   b
@@ -215,7 +237,7 @@ export function ShoppingChat({ initialId }: { initialId: string | null }) {
                       key={example}
                       variant="outline"
                       onClick={() => {
-                        session.draft(example);
+                        setDraft(example);
                         composer.current?.focus();
                       }}
                       disabled={blocked}
@@ -227,19 +249,19 @@ export function ShoppingChat({ initialId }: { initialId: string | null }) {
                 </div>
               </div>
             )}
-            <Transcript state={state} session={session} />
-            {state.notice && (
+            <Transcript session={session} />
+            {notice && (
               <div role="alert" className="notice">
-                <p>{state.notice}</p>
-                <Button variant="link" onClick={session.reload} disabled={state.busy}>
+                <p>{notice}</p>
+                <Button variant="link" onClick={session.reload} disabled={busy}>
                   Refresh chat
                 </Button>
-                {state.inaccessible && <Link href="/">Return to history</Link>}
+                {inaccessible && <Link href="/">Return to history</Link>}
               </div>
             )}
           </div>
         </div>
-        {!state.inaccessible && (
+        {!inaccessible && (
           <div className="composer-dock">
             <form className="composer" onSubmit={submit}>
               <label className="sr-only" htmlFor="shopper-message">
@@ -248,12 +270,12 @@ export function ShoppingChat({ initialId }: { initialId: string | null }) {
               <textarea
                 ref={composer}
                 rows={2}
-                disabled={state.loading}
+                disabled={loading}
                 id="shopper-message"
                 maxLength={4000}
                 placeholder="Ask about a product…"
-                value={state.draft}
-                onChange={(e) => session.draft(e.target.value)}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                     e.preventDefault();
@@ -261,7 +283,7 @@ export function ShoppingChat({ initialId }: { initialId: string | null }) {
                   }
                 }}
               />
-              <Button type="submit" className="send" disabled={blocked || !state.draft.trim()}>
+              <Button type="submit" className="send" disabled={blocked || !draft.trim()}>
                 Send <span aria-hidden="true">↑</span>
               </Button>
             </form>

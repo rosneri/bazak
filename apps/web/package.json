@@ -17,6 +17,7 @@
     "@bazak/evaluation-store": "workspace:*",
     "@bazak/product-discovery": "workspace:*",
     "@bazak/ui": "workspace:*",
+    "@tanstack/react-query": "5.108.2",
     "ai": "7.0.179",
     "next": "16.4.6",
     "react": "^19.0.0",

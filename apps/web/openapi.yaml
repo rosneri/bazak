@@ -1,0 +1,1011 @@
+openapi: 3.1.0
+info:
+  title: Bazak Shopper API
+  version: 1.0.0
+  description: Create and recover saved shopping conversations and stream individual turn attempts.
+paths:
+  /api/conversations:
+    get:
+      operationId: listConversations
+      summary: List saved shopper conversations
+      responses:
+        "200":
+          description: Conversations in descending order of last activity, with ties broken by descending ID.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationListResponse"
+        "500":
+          $ref: "#/components/responses/CorruptThread"
+        "503":
+          $ref: "#/components/responses/StorageUnavailable"
+    post:
+      operationId: createConversation
+      summary: Create or recover a conversation using a client-generated ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateConversationInput"
+      responses:
+        "200":
+          description: The shopper conversation with this ID already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationResponse"
+        "201":
+          description: A conversation with the requested ID was created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationResponse"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/CorruptThread"
+        "503":
+          $ref: "#/components/responses/StorageUnavailable"
+  /api/conversations/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ConversationId"
+    get:
+      operationId: getConversation
+      summary: Load a conversation and its ordered saved turns
+      responses:
+        "200":
+          description: The current saved history, including the latest attempt of every turn.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SavedConversation"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/CorruptThread"
+        "503":
+          $ref: "#/components/responses/StorageUnavailable"
+  /api/conversations/{id}/turns:
+    parameters:
+      - $ref: "#/components/parameters/ConversationId"
+    post:
+      operationId: sendTurn
+      summary: Submit a turn and stream its attempt
+      description: |
+        A new turn starts attempt 1. Resubmitting the same turn ID with the same text reports
+        the current status. A completed turn also replays its committed reply. A duplicate
+        in another state closes after status without starting an attempt.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendTurnInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/TurnStream"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The code is thread_busy for another active turn or turn_conflict for the same turn ID with different text.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "500":
+          $ref: "#/components/responses/CorruptThread"
+        "503":
+          $ref: "#/components/responses/StorageUnavailable"
+  /api/conversations/{id}/turns/{turnId}/retry:
+    parameters:
+      - $ref: "#/components/parameters/ConversationId"
+      - $ref: "#/components/parameters/TurnId"
+    post:
+      operationId: retryTurn
+      summary: Retry the generation of a failed or interrupted turn
+      description: |
+        A failed or interrupted turn starts its next attempt if the supplied generation
+        matches. An older generation, a running attempt, or a completed turn reports
+        the current status without starting an attempt. A completed turn additionally
+        replays its committed reply.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RetryTurnInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/TurnStream"
+        "400":
+          $ref: "#/components/responses/InvalidInput"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The code is thread_busy for another active turn or attempt_conflict for a request specifying a future generation.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "500":
+          $ref: "#/components/responses/CorruptThread"
+        "503":
+          $ref: "#/components/responses/StorageUnavailable"
+components:
+  parameters:
+    ConversationId:
+      name: id
+      in: path
+      required: true
+      description: Identifies the shopper conversation.
+      schema:
+        $ref: "#/components/schemas/Identifier"
+    TurnId:
+      name: turnId
+      in: path
+      required: true
+      description: Identifies the turn within the conversation.
+      schema:
+        $ref: "#/components/schemas/Identifier"
+  headers:
+    NoStore:
+      description: Disables caching of the response.
+      schema:
+        type: string
+        description: Cache directive returned with saved data and errors.
+        enum: [no-store]
+  responses:
+    InvalidInput:
+      description: The code is invalid_input for malformed JSON or request values outside the contract.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/NoStore"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiErrorResponse"
+    NotFound:
+      description: The code is not_found when the requested conversation or turn is unavailable to the shopper.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/NoStore"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiErrorResponse"
+    CorruptThread:
+      description: The code is corrupt_thread when saved conversation data fails validation.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/NoStore"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiErrorResponse"
+    StorageUnavailable:
+      description: The code is storage_unavailable when the request cannot proceed due to storage or another unexpected server failure.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/NoStore"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiErrorResponse"
+    TurnStream:
+      description: |
+        A UTF-8 server-sent event stream. Each event is serialized as one JSON object
+        prefixed by "data: " and followed by two LF characters. The payload in each
+        frame conforms to the TurnEvent schema. Status precedes previews and text
+        from an accepted attempt. Done reports a committed reply. Error reports a
+        failure after streaming begins and terminates the stream. A duplicate or
+        stale request can close after its current status. Cancellation or transport
+        interruption can close the stream before a terminal event arrives.
+      headers:
+        Cache-Control:
+          description: Disables response caching and intermediary transformations.
+          schema:
+            type: string
+            description: Cache directives for the stream.
+            enum: ["no-store, no-transform"]
+        X-Accel-Buffering:
+          description: Asks supporting proxies to deliver frames immediately.
+          schema:
+            type: string
+            description: Proxy buffering directive.
+            enum: ["no"]
+      content:
+        text/event-stream:
+          schema:
+            type: string
+            description: An incremental sequence of UTF-8 SSE data frames containing JSON TurnEvent payloads.
+          x-event-schema:
+            $ref: "#/components/schemas/TurnEvent"
+          example: |+
+            data: {"type":"status","turnId":"287b0597-9961-4a9c-8e75-59d245d9b88d","state":"running","attempt":1}
+
+            data: {"type":"error","turnId":"287b0597-9961-4a9c-8e75-59d245d9b88d","code":"attempt_failed","message":"The reply was interrupted. Check the conversation and retry this turn."}
+
+  schemas:
+    Identifier:
+      type: string
+      format: uuid
+      description: A stable client-generated UUID.
+    Timestamp:
+      type: string
+      format: date-time
+      pattern: "Z$"
+      description: A UTC timestamp ending in Z.
+    AttemptNumber:
+      type: integer
+      minimum: 1
+      maximum: 9007199254740991
+      description: The one-based generation of a turn attempt.
+    ShopperText:
+      type: string
+      maxLength: 4000
+      pattern: '\S'
+      description: The original shopper text, containing a non-whitespace character and up to 4000 Unicode code points.
+    CreateConversationInput:
+      type: object
+      description: Identifies a shopper conversation to create or recover.
+      additionalProperties: false
+      required: [id]
+      properties:
+        id:
+          $ref: "#/components/schemas/Identifier"
+          description: Client-generated conversation ID reused across creation retries.
+    SendTurnInput:
+      type: object
+      description: A new or repeated submission of a shopper turn.
+      additionalProperties: false
+      required: [turnId, text]
+      properties:
+        turnId:
+          $ref: "#/components/schemas/Identifier"
+          description: Client-generated turn ID scoped to the conversation.
+        text:
+          $ref: "#/components/schemas/ShopperText"
+          description: Original shopper text kept unchanged across retries of the same submission.
+    RetryTurnInput:
+      type: object
+      description: Requests a new attempt of a saved turn.
+      additionalProperties: false
+      required: [expectedAttempt]
+      properties:
+        expectedAttempt:
+          $ref: "#/components/schemas/AttemptNumber"
+          description: The latest attempt generation observed by the shopper.
+    ConversationSummary:
+      type: object
+      description: Identifies a saved shopper conversation and its last activity.
+      additionalProperties: false
+      required: [id, title, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: "#/components/schemas/Identifier"
+          description: The saved conversation ID.
+        title:
+          type: string
+          minLength: 1
+          description: The title shown in conversation history.
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+          description: When this conversation was first created.
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+          description: When this conversation last changed.
+    ConversationListResponse:
+      type: object
+      description: The available saved shopper conversations.
+      additionalProperties: false
+      required: [conversations]
+      properties:
+        conversations:
+          type: array
+          description: Conversations in descending order of last activity.
+          items:
+            $ref: "#/components/schemas/ConversationSummary"
+    ConversationResponse:
+      type: object
+      description: A newly created or recovered shopper conversation.
+      additionalProperties: false
+      required: [conversation]
+      properties:
+        conversation:
+          $ref: "#/components/schemas/ConversationSummary"
+          description: The conversation associated with the submitted ID.
+    SavedConversation:
+      type: object
+      description: A shopper conversation and its durable turn history.
+      additionalProperties: false
+      required: [conversation, turns]
+      properties:
+        conversation:
+          $ref: "#/components/schemas/ConversationSummary"
+          description: Summary and activity timestamps of the requested conversation.
+        turns:
+          type: array
+          description: Saved turns in ascending chronological insertion order.
+          items:
+            $ref: "#/components/schemas/SavedTurn"
+    SavedTurn:
+      type: object
+      description: Original shopper input and the latest state of its current attempt.
+      additionalProperties: false
+      required: [turnId, text, state, attempt, assistant, decision, metrics]
+      properties:
+        turnId:
+          $ref: "#/components/schemas/Identifier"
+          description: The saved turn ID unique within its conversation.
+        text:
+          $ref: "#/components/schemas/ShopperText"
+          description: The shopper's original input.
+        state:
+          $ref: "#/components/schemas/TurnState"
+          description: State of the most recent attempt of this turn.
+        attempt:
+          $ref: "#/components/schemas/AttemptNumber"
+          description: Generation of the most recent attempt of this turn.
+        assistant:
+          description: The committed reply if the turn is completed, or null.
+          anyOf:
+            - $ref: "#/components/schemas/AssistantMessage"
+            - type: "null"
+              description: The reply has yet to be committed.
+        decision:
+          description: The latest validated intent decision if saved, or null.
+          anyOf:
+            - $ref: "#/components/schemas/IntentDecision"
+            - type: "null"
+              description: The current attempt has no saved intent decision.
+        metrics:
+          description: The latest recorded measurements if available, or null.
+          anyOf:
+            - $ref: "#/components/schemas/AttemptMetrics"
+            - type: "null"
+              description: The current attempt has no saved measurements.
+    TurnState:
+      type: string
+      description: Processing state of the latest attempt.
+      enum: [running, completed, failed, interrupted]
+    AssistantMessage:
+      type: object
+      description: The durable assistant reply associated with a completed turn.
+      additionalProperties: false
+      required: [parts]
+      properties:
+        parts:
+          type: array
+          description: Committed assistant content in emission order.
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/MessagePart"
+    MessagePart:
+      description: A supported saved content part identified by its type.
+      oneOf:
+        - $ref: "#/components/schemas/TextPart"
+        - $ref: "#/components/schemas/ProductPart"
+      discriminator:
+        propertyName: type
+        mapping:
+          text: "#/components/schemas/TextPart"
+          products: "#/components/schemas/ProductPart"
+    TextPart:
+      type: object
+      description: A saved plain text passage.
+      additionalProperties: false
+      required: [type, text]
+      properties:
+        type:
+          type: string
+          description: Identifies a text passage.
+          enum: [text]
+        text:
+          type: string
+          pattern: '\S'
+          description: The non-blank text shown to the shopper.
+    ProductPart:
+      type: object
+      description: A versioned presentation of a verified catalog result or guidance.
+      additionalProperties: false
+      required: [type, version, group]
+      properties:
+        type:
+          type: string
+          description: Identifies a catalog presentation part.
+          enum: [products]
+        version:
+          type: integer
+          description: Catalog presentation format version.
+          enum: [1]
+        group:
+          $ref: "#/components/schemas/ResultGroup"
+          description: The outcome and visible product snapshots for the requested group.
+    ResultGroup:
+      type: object
+      description: An ordered, labeled catalog result or guidance. Matched groups have at least one product and successful lookups report their observed coverage.
+      additionalProperties: false
+      required: [kind, label, criteria, products, coverage, message]
+      properties:
+        kind:
+          type: string
+          description: The observed outcome of the catalog lookup or guidance.
+          enum: [matched, empty, lookup-error, clarify, off-catalog]
+        label:
+          type: string
+          minLength: 1
+          description: The short display name of the requested group.
+        criteria:
+          description: Explicit search constraints when applicable, or null.
+          anyOf:
+            - $ref: "#/components/schemas/DiscoveryCriteria"
+            - type: "null"
+              description: The group has no search constraints.
+        products:
+          type: array
+          description: Verified visible snapshots in display order. Only matched groups contain products.
+          maxItems: 10
+          items:
+            $ref: "#/components/schemas/ProductSnapshot"
+        coverage:
+          description: Whether all available pages were stably observed. Only matched and empty groups report coverage.
+          anyOf:
+            - type: string
+              description: Extent of the successful catalog lookup.
+              enum: [partial, exhaustive]
+            - type: "null"
+              description: Coverage does not apply to this group.
+        message:
+          type: string
+          minLength: 1
+          description: A shopper-facing explanation of this result.
+    ProductSnapshot:
+      type: object
+      description: Observed catalog facts captured together for a product at a single instant.
+      additionalProperties: false
+      required: [id, title, description, price, stock, observedAt]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          description: The identifier in the source catalog.
+        title:
+          type: string
+          minLength: 1
+          description: The catalog title shown to the shopper.
+        description:
+          type: string
+          description: The catalog's description of the product.
+        price:
+          type: number
+          minimum: 0
+          description: The observed unit price in the catalog currency.
+        category:
+          type: string
+          minLength: 1
+          description: The category reported on the product, when available.
+        stock:
+          type: integer
+          minimum: 0
+          description: The observed number of units in stock.
+        imageUrl:
+          type: string
+          format: uri
+          pattern: '^[Hh][Tt][Tt][Pp][Ss]?:\x2f\x2f'
+          description: An HTTP or HTTPS thumbnail URL when available.
+        observedAt:
+          $ref: "#/components/schemas/Timestamp"
+          description: When the catalog adapter observed these values.
+    DiscoveryCriteria:
+      type: object
+      description: Explicit constraints for one product search. A category or keywords identify the requested product.
+      additionalProperties: false
+      properties:
+        category:
+          $ref: "#/components/schemas/CategorySlug"
+          description: Restricts the lookup to this catalog category.
+        keywords:
+          $ref: "#/components/schemas/SearchKeywords"
+          description: Terms the requested product must match.
+        maxPrice:
+          type: number
+          minimum: 0
+          description: Upper limit on the price of one item, in dollars.
+        priceBoundary:
+          type: string
+          description: Whether the price may equal the ceiling. An omitted boundary defaults to inclusive.
+          enum: [exclusive, inclusive]
+        priceOrder:
+          type: string
+          description: Explicit price order requested by the shopper.
+          enum: [ascending, descending]
+        count:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: Number of product cards requested by the shopper.
+    CategorySlug:
+      type: string
+      description: A supported DummyJSON category.
+      enum:
+        - beauty
+        - fragrances
+        - furniture
+        - groceries
+        - home-decoration
+        - kitchen-accessories
+        - laptops
+        - mens-shirts
+        - mens-shoes
+        - mens-watches
+        - mobile-accessories
+        - motorcycle
+        - skin-care
+        - smartphones
+        - sports-accessories
+        - sunglasses
+        - tablets
+        - tops
+        - vehicle
+        - womens-bags
+        - womens-dresses
+        - womens-jewellery
+        - womens-shoes
+        - womens-watches
+    SearchKeywords:
+      type: string
+      minLength: 1
+      maxLength: 120
+      pattern: '\S'
+      description: Non-blank catalog search terms stored with surrounding whitespace removed.
+    GroupLabel:
+      type: string
+      minLength: 1
+      maxLength: 80
+      pattern: '\S'
+      description: A short product group name stored with surrounding whitespace removed.
+    ClarificationQuestion:
+      type: string
+      minLength: 1
+      maxLength: 240
+      pattern: '\S'
+      description: A question asking for a missing shopping detail, stored trimmed.
+    ReferencedProductId:
+      type: string
+      minLength: 1
+      maxLength: 80
+      description: A previously displayed catalog product identifier.
+    IntentDecision:
+      description: The validated interpretation of the shopper's turn.
+      oneOf:
+        - $ref: "#/components/schemas/DiscoverDecision"
+        - $ref: "#/components/schemas/ClarifyDecision"
+        - $ref: "#/components/schemas/OffCatalogDecision"
+        - $ref: "#/components/schemas/DetailDecision"
+        - $ref: "#/components/schemas/CheaperDecision"
+        - $ref: "#/components/schemas/RetryGroupDecision"
+      discriminator:
+        propertyName: kind
+        mapping:
+          discover: "#/components/schemas/DiscoverDecision"
+          clarify: "#/components/schemas/ClarifyDecision"
+          off-catalog: "#/components/schemas/OffCatalogDecision"
+          detail: "#/components/schemas/DetailDecision"
+          cheaper: "#/components/schemas/CheaperDecision"
+          retry-group: "#/components/schemas/RetryGroupDecision"
+    DiscoverDecision:
+      type: object
+      description: One or more independent shopping requests.
+      additionalProperties: false
+      required: [kind, searches]
+      properties:
+        kind:
+          type: string
+          description: Processes the ordered shopping requests.
+          enum: [discover]
+        searches:
+          type: array
+          description: Shopping groups in the order requested.
+          minItems: 1
+          maxItems: 3
+          items:
+            $ref: "#/components/schemas/DiscoveryIntentGroup"
+    DiscoveryIntentGroup:
+      description: The action for one requested shopping group.
+      oneOf:
+        - $ref: "#/components/schemas/SearchIntentGroup"
+        - $ref: "#/components/schemas/ClarifyIntentGroup"
+        - $ref: "#/components/schemas/OffCatalogIntentGroup"
+      discriminator:
+        propertyName: kind
+        mapping:
+          search: "#/components/schemas/SearchIntentGroup"
+          clarify: "#/components/schemas/ClarifyIntentGroup"
+          off-catalog: "#/components/schemas/OffCatalogIntentGroup"
+    SearchIntentGroup:
+      type: object
+      description: An actionable search request.
+      additionalProperties: false
+      required: [kind, label, criteria, readiness]
+      properties:
+        kind:
+          type: string
+          description: Selects a search of the catalog for this group.
+          enum: [search]
+        label:
+          $ref: "#/components/schemas/GroupLabel"
+          description: The name shown for this search group.
+        criteria:
+          $ref: "#/components/schemas/DiscoveryCriteria"
+          description: Explicit constraints for this search.
+        readiness:
+          type: string
+          description: Whether the search is ready to run or could benefit from planning based on relevant shopping history.
+          enum: [ready, needs-planning]
+    ClarifyIntentGroup:
+      type: object
+      description: A shopping group requiring clarification.
+      additionalProperties: false
+      required: [kind, label, question]
+      properties:
+        kind:
+          type: string
+          description: Selects a clarification question for the group.
+          enum: [clarify]
+        label:
+          $ref: "#/components/schemas/GroupLabel"
+          description: The name shown for this group.
+        question:
+          $ref: "#/components/schemas/ClarificationQuestion"
+          description: The clarification question for this group.
+    OffCatalogIntentGroup:
+      type: object
+      description: A requested group outside the product catalog.
+      additionalProperties: false
+      required: [kind, label]
+      properties:
+        kind:
+          type: string
+          description: Identifies an out-of-scope group.
+          enum: [off-catalog]
+        label:
+          $ref: "#/components/schemas/GroupLabel"
+          description: The name shown for this group.
+    ClarifyDecision:
+      type: object
+      description: A request needing a more specific product target.
+      additionalProperties: false
+      required: [kind, question]
+      properties:
+        kind:
+          type: string
+          description: Selects a question asking for clarification of the turn.
+          enum: [clarify]
+        question:
+          $ref: "#/components/schemas/ClarificationQuestion"
+          description: The clarification question shown to the shopper.
+    OffCatalogDecision:
+      type: object
+      description: A request that needs guidance about the scope of the catalog.
+      additionalProperties: false
+      required: [kind]
+      properties:
+        kind:
+          type: string
+          description: Identifies an out-of-scope request.
+          enum: [off-catalog]
+    DetailDecision:
+      type: object
+      description: Retrieve current facts about a previously displayed item.
+      additionalProperties: false
+      required: [kind, productId]
+      properties:
+        kind:
+          type: string
+          description: Refreshes one visible product.
+          enum: [detail]
+        productId:
+          $ref: "#/components/schemas/ReferencedProductId"
+          description: The visible product to refresh.
+    CheaperDecision:
+      type: object
+      description: A contextual request for a lower-priced alternative.
+      additionalProperties: false
+      required: [kind, productId]
+      properties:
+        kind:
+          type: string
+          description: Identifies a request for a lower price.
+          enum: [cheaper]
+        productId:
+          description: The card to compare against, or null to use the most recent group.
+          anyOf:
+            - $ref: "#/components/schemas/ReferencedProductId"
+            - type: "null"
+              description: The comparison applies to the most recent group.
+    RetryGroupDecision:
+      type: object
+      description: Retry a named group lookup that failed on a previous turn.
+      additionalProperties: false
+      required: [kind, label]
+      properties:
+        kind:
+          type: string
+          description: Identifies a request to repeat a specific failed group lookup.
+          enum: [retry-group]
+        label:
+          $ref: "#/components/schemas/GroupLabel"
+          description: The display name of the group to look up again.
+    AttemptMetrics:
+      type: object
+      description: Recorded operations and timings for the latest attempt. Page queries count as catalog calls and first content appears within the measured duration.
+      additionalProperties: false
+      required:
+        [
+          intentCalls,
+          plannerCalls,
+          catalogCalls,
+          replyCalls,
+          queries,
+          planner,
+          firstVisibleMs,
+          durationMs,
+        ]
+      properties:
+        intentCalls:
+          type: integer
+          minimum: 0
+          maximum: 1
+          description: Number of intent calls started.
+        plannerCalls:
+          type: integer
+          minimum: 0
+          maximum: 1
+          description: Number of batched planner calls started.
+        catalogCalls:
+          type: integer
+          minimum: 0
+          maximum: 9
+          description: Number of catalog requests started, including failed requests.
+        replyCalls:
+          type: integer
+          minimum: 0
+          maximum: 1
+          description: Number of assistant reply streams started.
+        queries:
+          type: array
+          description: Page queries attempted in order.
+          items:
+            $ref: "#/components/schemas/CatalogQuery"
+        planner:
+          type: array
+          description: Planning dispositions in group order.
+          items:
+            type: string
+            description: How planning was used for one group.
+            enum: [skipped, used, clarification, fallback]
+        firstVisibleMs:
+          description: Elapsed milliseconds until the first shopper content, or null.
+          anyOf:
+            - type: integer
+              minimum: 0
+              description: Time until the first shopper content appeared.
+            - type: "null"
+              description: No shopper content appeared during the attempt.
+        durationMs:
+          type: integer
+          minimum: 0
+          description: Total elapsed milliseconds for the attempt.
+    CatalogQuery:
+      type: object
+      description: A page of results requested through the catalog adapter.
+      additionalProperties: false
+      required: [source, offset, limit]
+      properties:
+        source:
+          $ref: "#/components/schemas/CatalogQuerySource"
+          description: The lookup used to fetch this page of results.
+        offset:
+          type: integer
+          minimum: 0
+          description: The number of catalog matches to skip.
+        limit:
+          type: integer
+          minimum: 1
+          description: The maximum number of results to fetch in this page.
+    CatalogQuerySource:
+      description: The kind and criteria of the underlying catalog lookup.
+      oneOf:
+        - $ref: "#/components/schemas/KeywordQuerySource"
+        - $ref: "#/components/schemas/CategoryQuerySource"
+      discriminator:
+        propertyName: kind
+        mapping:
+          search: "#/components/schemas/KeywordQuerySource"
+          category: "#/components/schemas/CategoryQuerySource"
+    KeywordQuerySource:
+      type: object
+      description: A keyword search across products in the catalog.
+      additionalProperties: false
+      required: [kind, keywords]
+      properties:
+        kind:
+          type: string
+          description: Identifies a keyword lookup.
+          enum: [search]
+        keywords:
+          $ref: "#/components/schemas/SearchKeywords"
+          description: The terms sent to the catalog.
+    CategoryQuerySource:
+      type: object
+      description: A lookup within one catalog category.
+      additionalProperties: false
+      required: [kind, category]
+      properties:
+        kind:
+          type: string
+          description: Identifies a category lookup.
+          enum: [category]
+        category:
+          $ref: "#/components/schemas/CategorySlug"
+          description: The category queried.
+    ApiErrorResponse:
+      type: object
+      description: A safe JSON error returned before a stream starts or by a non-streaming operation.
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          description: Machine-readable and shopper-facing information about the failure.
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code:
+              $ref: "#/components/schemas/ApiErrorCode"
+              description: A stable code for this HTTP error.
+            message:
+              type: string
+              minLength: 1
+              description: A safe shopper-facing explanation of the failure.
+    ApiErrorCode:
+      type: string
+      description: A stable reason code used for failures returned as HTTP errors.
+      enum:
+        - invalid_input
+        - not_found
+        - thread_busy
+        - turn_conflict
+        - attempt_conflict
+        - corrupt_thread
+        - storage_unavailable
+    TurnEvent:
+      description: The JSON data payload of an individual server-sent turn event.
+      oneOf:
+        - $ref: "#/components/schemas/TurnStatusEvent"
+        - $ref: "#/components/schemas/TurnTextDeltaEvent"
+        - $ref: "#/components/schemas/TurnProductsEvent"
+        - $ref: "#/components/schemas/TurnDoneEvent"
+        - $ref: "#/components/schemas/TurnErrorEvent"
+      discriminator:
+        propertyName: type
+        mapping:
+          status: "#/components/schemas/TurnStatusEvent"
+          text-delta: "#/components/schemas/TurnTextDeltaEvent"
+          products: "#/components/schemas/TurnProductsEvent"
+          done: "#/components/schemas/TurnDoneEvent"
+          error: "#/components/schemas/TurnErrorEvent"
+    TurnStatusEvent:
+      type: object
+      description: Reports the current generation and state of a turn.
+      additionalProperties: false
+      required: [type, turnId, state, attempt]
+      properties:
+        type:
+          type: string
+          description: Identifies a turn status event.
+          enum: [status]
+        turnId:
+          $ref: "#/components/schemas/Identifier"
+          description: The affected turn.
+        state:
+          $ref: "#/components/schemas/TurnState"
+          description: The state of the reported attempt.
+        attempt:
+          $ref: "#/components/schemas/AttemptNumber"
+          description: The reported attempt generation.
+    TurnTextDeltaEvent:
+      type: object
+      description: Delivers a shopper-facing text fragment.
+      additionalProperties: false
+      required: [type, turnId, text]
+      properties:
+        type:
+          type: string
+          description: Identifies a text delta.
+          enum: [text-delta]
+        turnId:
+          $ref: "#/components/schemas/Identifier"
+          description: The affected turn.
+        text:
+          type: string
+          pattern: '\S'
+          description: The visible text fragment, which may include surrounding whitespace.
+    TurnProductsEvent:
+      type: object
+      description: Presents one verified catalog group before the whole reply is committed.
+      additionalProperties: false
+      required: [type, turnId, part]
+      properties:
+        type:
+          type: string
+          description: Identifies a product group preview.
+          enum: [products]
+        turnId:
+          $ref: "#/components/schemas/Identifier"
+          description: The affected turn.
+        part:
+          $ref: "#/components/schemas/ProductPart"
+          description: The versioned preview.
+    TurnDoneEvent:
+      type: object
+      description: Reports the committed assistant reply and completes the stream.
+      additionalProperties: false
+      required: [type, turnId, assistant]
+      properties:
+        type:
+          type: string
+          description: Identifies completion or a replay of a completed turn.
+          enum: [done]
+        turnId:
+          $ref: "#/components/schemas/Identifier"
+          description: The completed turn.
+        assistant:
+          $ref: "#/components/schemas/AssistantMessage"
+          description: The complete saved assistant reply.
+    TurnErrorEvent:
+      type: object
+      description: Reports a safe error after streaming begins and ends the stream.
+      additionalProperties: false
+      required: [type, turnId, code, message]
+      properties:
+        type:
+          type: string
+          description: Identifies the terminal error frame.
+          enum: [error]
+        turnId:
+          $ref: "#/components/schemas/Identifier"
+          description: The affected turn.
+        code:
+          $ref: "#/components/schemas/TurnErrorCode"
+          description: The stable error category.
+        message:
+          type: string
+          minLength: 1
+          description: A safe actionable explanation of the failure.
+    TurnErrorCode:
+      description: A stable error code emitted in a terminal SSE frame.
+      anyOf:
+        - $ref: "#/components/schemas/ApiErrorCode"
+        - type: string
+          description: Failure specific to attempt execution or streaming.
+          enum: [provider_configuration, attempt_failed, stream_interrupted]

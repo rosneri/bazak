@@ -129,10 +129,6 @@ export const retryTurnInputSchema = z
   .strictObject({ expectedAttempt: attempt })
   .describe("Retry the generation the shopper saw.");
 
-export const createConversationInputSchema = z
-  .strictObject({ id: idSchema })
-  .describe("Create or recover this client-generated thread.");
-
 export const turnSchema = z
   .strictObject({
     turnId: idSchema,

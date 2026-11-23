@@ -15,7 +15,7 @@
     "ui:check": "node node_modules/hallmark-ui/skills/hallmark/scripts/sloplint.mjs apps packages --scope app",
     "db:up": "docker compose up --detach --wait && pnpm db:migrate",
     "db:down": "docker compose down",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm run doctor && pnpm ui:check && docker compose config --quiet && moon run :test :build && pnpm test:journey",
+    "check": "pnpm api:check && pnpm format:check && pnpm lint && pnpm typecheck && pnpm run doctor && pnpm ui:check && docker compose config --quiet && moon run :test :build && pnpm test:journey",
     "dev:management": "pnpm --filter @bazak/management dev",
     "start:management": "pnpm --filter @bazak/management start",
     "db:migrate": "pnpm --filter @bazak/evaluation-store exec prisma migrate deploy",
@@ -31,13 +31,16 @@
     "test:e2e": "tsx scripts/test-database.ts browser",
     "build:fixture": "pnpm --filter @bazak/web build:fixture",
     "start:fixture": "pnpm --filter @bazak/web start:fixture",
-    "test:journey": "tsx scripts/test-database.ts all"
+    "test:journey": "tsx scripts/test-database.ts all",
+    "api:generate": "node scripts/generate-api.mjs",
+    "api:check": "node scripts/generate-api.mjs --check"
   },
   "devDependencies": {
     "@oxlint/plugins": "1.90.0",
     "@playwright/test": "1.65.1",
     "hallmark-ui": "https://codeload.github.com/Nutlope/hallmark/tar.gz/04977e15f3dfd6ee4b74c887dac3eb52665d6c92",
     "lefthook": "2.2.2",
+    "orval": "8.48.0",
     "oxfmt": "0.73.0",
     "oxlint": "1.90.0",
     "react-doctor": "0.9.23",
