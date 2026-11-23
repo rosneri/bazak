@@ -6,24 +6,23 @@ import {
   SAFE_FRAMING,
   type ConversationEvent,
   type ConversationModel,
+  type ModelDecision,
 } from "@bazak/conversation/application/chat";
 import {
   RepositoryError,
   type ConversationRepository,
 } from "@bazak/conversation/application/repository";
 import { createDiscoveryService } from "@bazak/product-discovery/application/discovery";
-import type { ProductCatalog } from "@bazak/product-discovery/application/catalog";
-import type { IntentDecision } from "@bazak/product-discovery/domain/discovery";
+import type { CatalogQuery, ProductCatalog } from "@bazak/product-discovery/application/catalog";
 import { testRepository } from "#testing/repository";
 
 const fragranceSearch = {
   kind: "search",
-  label: "Fragrances",
   criteria: { category: "fragrances", maxPrice: 50, count: 2, priceBoundary: "exclusive" },
   readiness: "ready",
 } as const;
 
-const search: IntentDecision = { kind: "discover", searches: [fragranceSearch] };
+const search: ModelDecision = { kind: "discover", searches: [fragranceSearch] };
 
 const scents = [38, 29, 14].map((price, i) => ({
   id: String(i + 1),
@@ -132,9 +131,9 @@ test("one unavailable catalog group and a vague gift do not hide the successful 
       return {
         kind: "discover",
         searches: [
-          { ...fragranceSearch, label: "Lamps", criteria: { keywords: "lamp" } },
+          { ...fragranceSearch, criteria: { keywords: "lamp" } },
           fragranceSearch,
-          { kind: "clarify", label: "Gift", question: "Who is the gift for?" },
+          { kind: "clarify", reason: "gift" },
         ],
       };
     },
@@ -171,7 +170,7 @@ test("vague, off-catalog and unseen product-detail requests make no catalog call
 
       if (text.includes("price")) return { kind: "detail", productId: "999" };
 
-      return { kind: "clarify", question: "What kind of product?" };
+      return { kind: "clarify", reason: "product" };
     },
   });
 
@@ -188,6 +187,101 @@ test("vague, off-catalog and unseen product-detail requests make no catalog call
         t.metrics?.catalogCalls === 0 && t.metrics.plannerCalls === 0 && t.metrics.replyCalls === 0,
     ),
   );
+});
+
+test("catalog searches use witnessed product terms or a known category", async () => {
+  const sources: CatalogQuery["source"][] = [];
+
+  const chat = setup({
+    async decide() {
+      return {
+        kind: "discover",
+        searches: [
+          { ...fragranceSearch, criteria: { keywords: "blue notebook" } },
+          { ...fragranceSearch, criteria: { category: "fragrances", keywords: "blue notebook" } },
+          { ...fragranceSearch, criteria: { keywords: "DESK lamp" } },
+        ],
+      };
+    },
+    products: {
+      ...catalog,
+      async findPage(query) {
+        sources.push(query.source);
+
+        return { products: [], total: 0, offset: 0 };
+      },
+    },
+  });
+
+  const events = await drain(chat.send("Show me scents and Desk Lamps."));
+  assert.deepEqual(sources, [
+    { kind: "category", category: "fragrances" },
+    { kind: "search", keywords: "desk lamp" },
+  ]);
+  const groups = events.flatMap((event) => (event.type === "products" ? [event.part.group] : []));
+  assert.deepEqual(
+    groups.map(({ label, kind }) => [label, kind]),
+    [
+      ["Product search", "clarify"],
+      ["Fragrances", "empty"],
+      ["Desk lamp", "empty"],
+    ],
+  );
+  assert.equal(groups[0]?.message, "What kind of product are you looking for?");
+  assert.equal(events.at(-1)?.type, "done");
+});
+
+test("only failed groups in the projected thread context can be retried", async () => {
+  let catalogCalls = 0;
+
+  const chat = setup({
+    async decide({ text, history }) {
+      if (text.includes("Try")) {
+        const [turn] = history;
+        assert.deepEqual(Object.keys(turn).sort(), ["groups", "text"]);
+        assert.deepEqual(
+          turn.groups.map(({ label, retryGroup }) => [label, retryGroup]),
+          [
+            ["Desk lamp", 0],
+            ["Floor lamp", 1],
+          ],
+        );
+
+        return { kind: "retry-group", group: text.includes("floor") ? 1 : 2 };
+      }
+
+      return {
+        kind: "discover",
+        searches: ["desk lamp", "floor lamp"].map((keywords) => ({
+          ...fragranceSearch,
+          criteria: { category: "home-decoration", keywords },
+        })),
+      };
+    },
+    products: {
+      ...catalog,
+      async findPage() {
+        catalogCalls++;
+
+        if (catalogCalls <= 2) throw new Error("Catalog unavailable");
+
+        return { products: [], total: 0, offset: 0 };
+      },
+    },
+  });
+
+  await drain(chat.send("Find desk lamps and floor lamps."));
+  const retry = await drain(chat.send("Try the floor lamps again."));
+  const group = retry.find((event) => event.type === "products")?.part.group;
+  assert.equal(group?.criteria?.keywords, "floor lamp");
+  assert.equal(group?.kind, "empty");
+
+  const unknown = await drain(chat.send("Try another group again."));
+  assert.equal(
+    unknown.find((event) => event.type === "text-delta")?.text,
+    "Which previous product lookup should I try again?",
+  );
+  assert.equal(catalogCalls, 3);
 });
 
 test("an interrupted provider leaves a preview, and retry saves one answer under the original message", async () => {

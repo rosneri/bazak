@@ -28,7 +28,7 @@ function metrics(): AttemptMetrics {
   };
 }
 
-test("only the broad category in a mixed request receives history, bounded to five short excerpts", async () => {
+test("only the broad category receives up to five turns of structured shopping evidence", async () => {
   const { repository, conversation } = testRepository();
   const observed = metrics();
   const reads: string[] = [];
@@ -42,7 +42,7 @@ test("only the broad category in a mixed request receives history, bounded to fi
         reads.push(category);
 
         return Array.from({ length: 10 }, () => ({
-          criteria: [{ category: "fragrances", maxPrice: 100 }],
+          criteria: [{ category: "fragrances", keywords: "citrus", maxPrice: 100 }],
           text: "Light citrus scents ".repeat(30),
         }));
       },
@@ -55,8 +55,14 @@ test("only the broad category in a mixed request receives history, bounded to fi
         );
         const [{ criteria, history }] = inputs;
         assert.equal(criteria.maxPrice, 40);
-        assert.equal(history.length, 5);
-        assert.ok(history.every((e) => e.text.length === 240));
+        assert.deepEqual(
+          history,
+          Array.from({ length: 5 }, () => ({
+            keywords: "citrus",
+            maxPrice: 100,
+            priceOrder: undefined,
+          })),
+        );
 
         return [{ index: 1, kind: "hint", keywords: "citrus", priceOrder: null }];
       },
@@ -77,7 +83,7 @@ test("empty history skips the planner and an uncorrelated response falls back to
 
   const planner = {
     async plan() {
-      return [{ index: 0, kind: "clarify" as const, question: "What kind?" }];
+      return [{ index: 0, kind: "clarify" as const }];
     },
   };
 
@@ -118,4 +124,38 @@ test("empty history skips the planner and an uncorrelated response falls back to
     0,
   );
   assert.equal(invalid.planner[1], "fallback");
+});
+
+test("a term found only in older prose cannot become a catalog hint", async () => {
+  const { repository, conversation } = testRepository();
+  const observed = metrics();
+
+  const plans = await planGroups(
+    groups,
+    conversation.id,
+    {
+      ...repository,
+      async relevantHistory() {
+        return [
+          {
+            criteria: [{ category: "fragrances" as const, keywords: "citrus" }],
+            text: "Show me citrus perfumes. Gift note: blue notebook.",
+          },
+        ];
+      },
+    },
+    {
+      async plan([input]) {
+        assert.equal(input.history[0].keywords, "citrus");
+        assert.equal("text" in input.history[0], false);
+
+        return [{ index: input.index, kind: "hint", keywords: "blue notebook", priceOrder: null }];
+      },
+    },
+    observed,
+    new AbortController().signal,
+  );
+
+  assert.equal(plans.size, 0);
+  assert.equal(observed.planner[1], "fallback");
 });

@@ -103,7 +103,7 @@ test("two threads reload in order and a labeled fixture result persists with its
           [0],
         );
 
-        return [{ kind: "clarify", index: 0, question: "Which fragrance notes do you prefer?" }];
+        return [{ kind: "clarify", index: 0 }];
       },
     },
     fixtureCatalog(clock),

@@ -4,6 +4,17 @@ import {
 } from "@bazak/product-discovery/application/catalog";
 import { productSnapshotSchema } from "@bazak/product-discovery/domain/product";
 import { z } from "zod";
+import { approvedCatalogThumbnail } from "@bazak/dummyjson/thumbnail";
+
+const maxProducts = 20;
+
+const querySchema = catalogQuerySchema
+  .extend({
+    limit: catalogQuerySchema.shape.limit
+      .max(maxProducts)
+      .describe("DummyJSON page size, capped at twenty products."),
+  })
+  .describe("A bounded DummyJSON product-list request.");
 
 const productSchema = z
   .object({
@@ -13,13 +24,20 @@ const productSchema = z
     description: productSnapshotSchema.shape.description,
     price: productSnapshotSchema.shape.price,
     stock: productSnapshotSchema.shape.stock,
-    thumbnail: productSnapshotSchema.shape.imageUrl,
+    thumbnail: z
+      .string()
+      .optional()
+      .catch(undefined)
+      .describe("Optional thumbnail from the catalog."),
   })
   .describe("The DummyJSON product fields used by the discovery feature.");
 
 const pageSchema = z
   .object({
-    products: z.array(productSchema).describe("The products included in this DummyJSON page."),
+    products: z
+      .array(productSchema)
+      .max(maxProducts)
+      .describe("The products included in this DummyJSON page."),
     total: z
       .int()
       .nonnegative()
@@ -37,7 +55,7 @@ function snapshot({ id, thumbnail, ...fields }: z.infer<typeof productSchema>, o
   return productSnapshotSchema.parse({
     ...fields,
     id: String(id),
-    imageUrl: thumbnail,
+    imageUrl: approvedCatalogThumbnail(thumbnail),
     observedAt,
   });
 }
@@ -45,7 +63,7 @@ function snapshot({ id, thumbnail, ...fields }: z.infer<typeof productSchema>, o
 export function createDummyJsonCatalog(fetchCatalog: typeof fetch): ProductCatalog {
   return {
     async findPage(input, signal) {
-      const { source, offset, limit } = catalogQuerySchema.parse(input);
+      const { source, offset, limit } = querySchema.parse(input);
       const url = new URL("https://dummyjson.com/products");
 
       if (source.kind === "search") {

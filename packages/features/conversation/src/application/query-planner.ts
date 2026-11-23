@@ -1,4 +1,5 @@
 import { bounded } from "#application/deadline";
+import { groundedKeywords } from "#application/model-decision";
 import { z } from "zod";
 import { searchHintSchema, type SearchHint } from "@bazak/product-discovery/application/discovery";
 import {
@@ -7,10 +8,7 @@ import {
   type IntentDecision,
 } from "@bazak/product-discovery/domain/discovery";
 import type { AttemptMetrics } from "@bazak/conversation/domain/turn";
-import type {
-  ConversationRepository,
-  HistoryEvidence,
-} from "@bazak/conversation/application/repository";
+import type { ConversationRepository } from "@bazak/conversation/application/repository";
 
 export const historyCriteriaSchema = z
   .array(discoveryCriteriaSchema)
@@ -34,12 +32,6 @@ export const plannerProposalsSchema = z
           .strictObject({
             kind: z.literal("clarify").describe("Ask before searching this group."),
             index: groupIndex,
-            question: z
-              .string()
-              .trim()
-              .min(1)
-              .max(240)
-              .describe("Ask about the missing product preference."),
           })
           .describe("Clarification for this group alone."),
       ])
@@ -53,7 +45,7 @@ export type PlannerProposal = z.infer<typeof plannerProposalsSchema>[number];
 export interface PlannerInput {
   index: number;
   criteria: DiscoveryCriteria;
-  history: HistoryEvidence[];
+  history: Pick<DiscoveryCriteria, "keywords" | "maxPrice" | "priceOrder">[];
 }
 
 export interface QueryPlanner {
@@ -77,7 +69,7 @@ export async function planGroups(
 ): Promise<Map<number, GroupPlan>> {
   const inputs: PlannerInput[] = [];
   const plans = new Map<number, GroupPlan>();
-  const byCategory = new Map<string, HistoryEvidence[]>();
+  const byCategory = new Map<string, PlannerInput["history"]>();
 
   for (const [index, group] of groups.entries()) {
     metrics.planner[index] = "skipped";
@@ -95,13 +87,16 @@ export async function planGroups(
         const prior = await bounded(() => repo.relevantHistory(id, category), signal);
         evidence = [];
 
-        for (const item of prior) {
+        for (const item of prior.slice(0, 5)) {
           const parsed = historyCriteriaSchema.safeParse(item.criteria);
 
-          if (parsed.success && parsed.data.every((criteria) => criteria.category === category))
-            evidence.push({ criteria: parsed.data, text: item.text.slice(0, 240) });
+          if (!parsed.success || !parsed.data.every((criteria) => criteria.category === category))
+            continue;
 
-          if (evidence.length === 5) break;
+          for (const { keywords, maxPrice, priceOrder } of parsed.data) {
+            const grounded = keywords && groundedKeywords(keywords, item.text);
+            evidence.push({ keywords: grounded || undefined, maxPrice, priceOrder });
+          }
         }
 
         byCategory.set(category, evidence);
@@ -132,12 +127,32 @@ export async function planGroups(
     for (const input of inputs) metrics.planner[input.index] = "fallback";
 
     for (const proposal of proposals) {
+      const input = inputs.find((candidate) => candidate.index === proposal.index);
+
       if (proposal.kind === "clarify") {
-        plans.set(proposal.index, { question: proposal.question });
+        const category = input?.criteria.category;
+
+        const question =
+          category === "fragrances"
+            ? "Which fragrance notes do you prefer?"
+            : "Which type, feature, or style should I look for?";
+
+        plans.set(proposal.index, { question });
         metrics.planner[proposal.index] = "clarification";
       } else {
+        const evidence = input?.history ?? [];
+        const keywords = proposal.keywords;
+
+        const grounded = keywords
+          ? evidence
+              .map((item) => item.keywords && groundedKeywords(keywords, item.keywords))
+              .find(Boolean)
+          : null;
+
+        if (keywords && !grounded) continue;
+
         plans.set(proposal.index, {
-          hint: { keywords: proposal.keywords, priceOrder: proposal.priceOrder },
+          hint: { keywords: grounded || null, priceOrder: proposal.priceOrder },
         });
         metrics.planner[proposal.index] = "used";
       }

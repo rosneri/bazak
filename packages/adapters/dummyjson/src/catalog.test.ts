@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createDummyJsonCatalog } from "@bazak/dummyjson";
+import { approvedCatalogThumbnail } from "@bazak/dummyjson/thumbnail";
 
 test("maps a keyword search page into catalog snapshots", async () => {
   const signal = new AbortController().signal;
@@ -129,4 +130,55 @@ test("refreshes one numeric product using the detail operation in the supplied O
   await assert.rejects(catalog.findById("7?skip=0"), { name: "ZodError" });
   const missing = createDummyJsonCatalog(async () => new Response(null, { status: 404 }));
   assert.equal(await missing.findById("7"), null);
+});
+
+test("catalog requests disable redirects and constrain the page size", async () => {
+  let fetches = 0;
+
+  const catalog = createDummyJsonCatalog(async (_, options) => {
+    assert.equal(options?.redirect, "error");
+    fetches++;
+
+    return Response.redirect("https://example.com/catalog");
+  });
+
+  const query = {
+    source: { kind: "category", category: "fragrances" },
+    offset: 0,
+    limit: 20,
+  } as const;
+
+  await assert.rejects(catalog.findPage(query), /HTTP 302/);
+  await assert.rejects(catalog.findById("7"), /HTTP 302/);
+  await assert.rejects(catalog.findPage({ ...query, limit: 21 }), { name: "ZodError" });
+  assert.equal(fetches, 2);
+});
+
+test("only catalog raster thumbnails are accepted and an invalid image keeps the product", async () => {
+  const known = "https://cdn.dummyjson.com/products/images/soap/thumbnail.webp";
+  assert.equal(approvedCatalogThumbnail(known), known);
+  assert.equal(approvedCatalogThumbnail("https://example.com/catalog/soap.webp"), undefined);
+  assert.equal(
+    approvedCatalogThumbnail("https://cdn.dummyjson.com/product-images/soap.svg"),
+    undefined,
+  );
+  assert.equal(
+    approvedCatalogThumbnail("https://cdn.dummyjson.com/product-images/soap.webp?size=20"),
+    undefined,
+  );
+
+  const catalog = createDummyJsonCatalog(async () =>
+    Response.json({
+      id: 7,
+      title: "Rose",
+      description: "A floral scent.",
+      price: 26,
+      stock: 3,
+      thumbnail: "https://example.com/catalog/soap.webp",
+    }),
+  );
+
+  const product = await catalog.findById("7");
+  assert.equal(product?.id, "7");
+  assert.equal(product.imageUrl, undefined);
 });

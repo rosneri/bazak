@@ -1,5 +1,10 @@
 import { approvedFraming } from "#application/framing";
 import { recentContext, resolveReferences, type ContextTurn } from "#application/context";
+import {
+  maxContextTurns,
+  modelDecisionSchema,
+  type ModelDecision,
+} from "#application/model-decision";
 
 import { bounded, stageSignal } from "#application/deadline";
 import {
@@ -36,6 +41,8 @@ import {
 
 export type { ContextTurn } from "#application/context";
 
+export { modelDecisionSchema, type ModelDecision } from "#application/model-decision";
+
 export { sendTurnInputSchema } from "@bazak/conversation/domain/turn";
 
 export { SAFE_FRAMING } from "#application/framing";
@@ -52,7 +59,7 @@ export interface ModelInput {
 }
 
 export interface ConversationModel {
-  decide(input: ModelInput, signal: AbortSignal): Promise<IntentDecision>;
+  decide(input: ModelInput, signal: AbortSignal): Promise<ModelDecision>;
   reply(signal: AbortSignal): AsyncIterable<string>;
 }
 
@@ -157,14 +164,16 @@ export function createConversationService(deps: Dependencies) {
       const intentSignal = stageSignal(signal, 20_000);
       metrics.intentCalls++;
 
-      const interpreted = intentDecisionSchema.parse(
+      const recent = history.slice(-maxContextTurns);
+
+      const interpreted = modelDecisionSchema.parse(
         await bounded(
-          () => model.decide({ text: turn.text, history: recentContext(history) }, intentSignal),
+          () => model.decide({ text: turn.text, history: recentContext(recent) }, intentSignal),
           intentSignal,
         ),
       );
 
-      decision = resolveReferences(interpreted, history);
+      decision = intentDecisionSchema.parse(resolveReferences(interpreted, turn.text, recent));
 
       if (decision.kind === "clarify" || decision.kind === "off-catalog") {
         const text = decision.kind === "clarify" ? decision.question : scopeGuidance;

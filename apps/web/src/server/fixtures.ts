@@ -3,12 +3,13 @@ import { setTimeout as delay } from "node:timers/promises";
 import {
   SAFE_FRAMING,
   type ConversationModel,
+  type ModelDecision,
   type ModelInput,
 } from "@bazak/conversation/application/chat";
 import type { QueryPlanner } from "@bazak/conversation/application/query-planner";
 import type { Clock } from "@bazak/conversation/application/repository";
 import type { ProductCatalog } from "@bazak/product-discovery/application/catalog";
-import type { DiscoveryCriteria, IntentDecision } from "@bazak/product-discovery/domain/discovery";
+import type { DiscoveryCriteria } from "@bazak/product-discovery/domain/discovery";
 import { productSnapshotSchema } from "@bazak/product-discovery/domain/product";
 
 const inventory = [
@@ -97,18 +98,13 @@ const counts = new Map([
   ["five", 5],
 ]);
 
-type Group = Extract<IntentDecision, { kind: "discover" }>["searches"][number];
+type Group = Extract<ModelDecision, { kind: "discover" }>["searches"][number];
 
 function interpretGroup(text: string): Group {
   const lamp = /lamp/.test(text);
   const fragrance = /fragrance|scent|perfume/.test(text);
 
-  if (!lamp && !fragrance)
-    return {
-      kind: "clarify",
-      label: "Gift",
-      question: "Who are you shopping for, and what do they like?",
-    };
+  if (!lamp && !fragrance) return { kind: "clarify", reason: "gift" };
   const criteria: DiscoveryCriteria = { category: lamp ? "home-decoration" : "fragrances" };
 
   if (lamp) criteria.keywords = "lamp";
@@ -134,13 +130,12 @@ function interpretGroup(text: string): Group {
 
   return {
     kind: "search",
-    label: lamp ? "Lamps" : "Fragrances",
     criteria,
     readiness: budget || criteria.count || criteria.priceOrder ? "ready" : "needs-planning",
   };
 }
 
-function interpret({ text, history }: ModelInput): IntentDecision {
+function interpret({ text, history }: ModelInput): ModelDecision {
   const lower = text.toLowerCase();
   const visible = history.flatMap((turn) => turn.groups.flatMap((group) => group.products));
   const named = visible.find((product) => lower.includes(product.title.toLowerCase()));
@@ -150,14 +145,21 @@ function interpret({ text, history }: ModelInput): IntentDecision {
   if (/stock|price (now|today)|current price/.test(lower) && (named || visible.length === 1))
     return { kind: "detail", productId: (named ?? visible[0]).id };
 
-  if (/retry|try again/.test(lower) && /lamp|fragrance/.test(lower))
-    return { kind: "retry-group", label: /lamp/.test(lower) ? "Lamps" : "Fragrances" };
+  if (/retry|try again/.test(lower)) {
+    const failed = [...history]
+      .reverse()
+      .flatMap((turn) => turn.groups)
+      .find(({ label, retryGroup }) => retryGroup !== null && lower.includes(label.toLowerCase()));
+
+    return failed?.retryGroup != null
+      ? { kind: "retry-group", group: failed.retryGroup }
+      : { kind: "clarify", reason: "product" };
+  }
 
   if (/weather|poem|politics|recipe|flight|plane ticket/.test(lower))
     return { kind: "off-catalog" };
 
-  if (!/fragrance|scent|perfume|lamp/.test(lower))
-    return { kind: "clarify", question: "What kind of product are you looking for?" };
+  if (!/fragrance|scent|perfume|lamp/.test(lower)) return { kind: "clarify", reason: "product" };
 
   const groups = lower.split(/\s+and\s+(?=(?:one|two|three|a|an|some|\d+)\s)/).map(interpretGroup);
 
@@ -165,10 +167,7 @@ function interpret({ text, history }: ModelInput): IntentDecision {
     groups.length > 3 ||
     groups.some((group) => group.kind === "search" && (group.criteria.count ?? 1) > 10)
   )
-    return {
-      kind: "clarify",
-      question: "Which three product groups should I search? I can show up to ten items per group.",
-    };
+    return { kind: "clarify", reason: "limits" };
 
   return { kind: "discover", searches: groups };
 }
@@ -197,7 +196,7 @@ export const fixturePlanner: QueryPlanner = {
     return groups.map(({ index, history }) => ({
       index,
       kind: "hint",
-      keywords: history.some((entry) => /\blight\b/i.test(entry.text)) ? "light" : null,
+      keywords: history.some((entry) => entry.keywords === "light") ? "light" : null,
       priceOrder: null,
     }));
   },
