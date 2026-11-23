@@ -2,13 +2,22 @@
   "name": "@bazak/web",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --hostname 127.0.0.1",
     "build": "next build",
-    "start": "next start",
-    "typecheck": "next typegen && tsc --noEmit"
+    "start": "next start --hostname 127.0.0.1",
+    "typecheck": "next typegen && tsc --noEmit",
+    "build:fixture": "SHOPPER_BUILD_PROFILE=fixture next build",
+    "start:fixture": "SHOPPER_BUILD_PROFILE=fixture next start --hostname 127.0.0.1",
+    "test": "tsx --test src/server/http.test.ts src/client/stream.test.ts"
   },
   "dependencies": {
+    "@ai-sdk/openai": "4.0.122",
+    "@bazak/conversation": "workspace:*",
+    "@bazak/dummyjson": "workspace:*",
+    "@bazak/evaluation-store": "workspace:*",
+    "@bazak/product-discovery": "workspace:*",
     "@bazak/ui": "workspace:*",
+    "ai": "7.0.179",
     "next": "16.4.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -22,5 +31,12 @@
     "postcss": "^8.5.33",
     "tailwindcss": "4.3.5",
     "typescript": "7.0.2"
+  },
+  "reactDoctor": {
+    "ignore": {
+      "files": [
+        ".next-fixture/server/**"
+      ]
+    }
   }
 }

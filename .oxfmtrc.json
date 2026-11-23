@@ -7,6 +7,9 @@
     ".agents/**",
     "assignment/**",
     "pnpm-lock.yaml",
-    "tools/oxlint/anti-slop/**"
+    "tools/oxlint/anti-slop/**",
+    "**/.next-fixture/**",
+    "test-results/**",
+    "playwright-report/**"
   ]
 }
