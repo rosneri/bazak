@@ -1,0 +1,24 @@
+{
+  "name": "@bazak/evaluations",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/domain/result.ts",
+    "./cases": "./src/domain/cases.ts",
+    "./evaluate": "./src/application/evaluate.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test src/domain/result.test.ts src/application/evaluate.test.ts"
+  },
+  "dependencies": {
+    "@bazak/conversation": "workspace:*",
+    "@bazak/product-discovery": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2"
+  }
+}
