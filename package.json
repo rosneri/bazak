@@ -1,0 +1,11 @@
+{
+  "name": "bazak",
+  "private": true,
+  "packageManager": "pnpm@12.16.1",
+  "scripts": {
+    "dev": "pnpm --filter @bazak/web dev",
+    "build": "pnpm --filter @bazak/web build",
+    "start": "pnpm --filter @bazak/web start",
+    "typecheck": "pnpm --filter @bazak/web typecheck"
+  }
+}
