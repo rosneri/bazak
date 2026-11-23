@@ -6,7 +6,9 @@
 
 A local shopper can ask for products in ordinary language, inspect catalog cards, narrow the results and return to that conversation. A reviewer can start both local apps, run independently labeled examples and inspect what the copilot actually returned. The assignment asks for a coherent discovery experience and for concrete reasons that the author can defend for each major choice. The primary acceptance journey is “two fragrances under $50,” followed by a cheaper suggestion, a reload and a return through chat history.
 
-## Analysis
+## Analysis at design time
+
+This brief preserves the design assumptions before implementation. See the [current architecture](architecture.md) and [handoff](../PROJECT_STATUS.md) for the implemented behavior.
 
 The repository already contains schemas for a chat message, a send request, search criteria and a catalog snapshot. The DummyJSON adapter validates keyword and category pages. The web app currently displays a starter page. The management app has configuration, and the partial Prisma setup defines an evaluation record. The remaining work includes model calls, retrieval policy, durable conversations, streamed rendering, labeled evaluation execution and both user interfaces. The [architecture sketch](architecture.md) describes the intended behavior and the [earlier comprehension review](comprehension_report.md) records decisions on mixed search results, concurrency, deletion and replay.
 

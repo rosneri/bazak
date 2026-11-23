@@ -148,18 +148,50 @@
     <main>
       <h1>Shopping copilot architecture</h1>
       <p>
+        Both local apps use PostgreSQL. The shopper streams product groups and approved sentences
+        over the response to a turn POST. The management app reads evaluation evidence on request.
+      </p>
+      <h2>Implemented system</h2>
+      <figure class="diagram" style="text-align: left">
+        <pre aria-label="Application data flow" style="width: max-content; margin: auto">
+Shopper browser ⇄ Next.js routes · 3000
+                      │
+                      ├─ Conversation management ───────────┐
+                      └─ Conversation service               │
+                           ├─ Intent / planner / reply      │
+                           │   ├─ Production · SDK → OpenAI │
+                           │   └─ Fixture · scripted model  │
+                           ├─ Discovery                     │
+                           │   ├─ Production · DummyJSON    │
+                           │   └─ Fixture · seeded catalog  │
+                           └─ Conversation repository ──────┤
+                                                           ↓
+Evaluation CLI → scoped conversation service        PostgreSQL / Prisma
+               → save labeled results ─────────────────────↑
+Management dashboard · 3002 → read run and case ────────────┘</pre>
+      </figure>
+      <p>
+        The browser renders live and saved groups with the same local versioned product card. See
+        the <a href="architecture.md">current diagrams and eight shopper journeys</a>.
+      </p>
+      <h2>Original design snapshot and eight illustrated journeys</h2>
+      <p>
+        The remaining sections preserve the diagrams and implementation plan as drafted, including
+        technologies that subsequently changed.
+      </p>
+      <p>
         A shopper can ask for products, refine the results, and return to the same conversation
         later. The conversation service owns one active turn per conversation. Product discovery
         owns the catalog search. Conversation management owns the saved thread list. All three run
         in one Next.js application.
       </p>
       <p>
-        <strong>Current state.</strong> The repository has a Next.js and TypeScript starter, shared
-        UI primitives, Zod, quality checks, and PostgreSQL in Docker Compose. The conversation
-        feature defines chat message and send-turn schemas. The DummyJSON adapter implements
-        paginated keyword and category queries. The diagrams describe the proposed application,
-        including the AI SDK integration and HTTP POST with a server-sent events (SSE) response. The
-        product component Strategy is a future UI decision.
+        <strong>State at design time.</strong> The repository has a Next.js and TypeScript starter,
+        shared UI primitives, Zod, quality checks, and PostgreSQL in Docker Compose. The
+        conversation feature defines chat message and send-turn schemas. The DummyJSON adapter
+        implements paginated keyword and category queries. The diagrams describe the proposed
+        application, including the AI SDK integration and HTTP POST with a server-sent events (SSE)
+        response. The product component Strategy is a future UI decision.
       </p>
       <nav aria-label="Sections">
         <a href="#code-architecture">Code architecture</a><a href="#user-journeys">User journeys</a

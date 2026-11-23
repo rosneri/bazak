@@ -1,5 +1,7 @@
 # Goldfish comprehension review
 
+This historical review records design-stage findings. See the [current handoff](../PROJECT_STATUS.md) for delivery status.
+
 An independent reader reviewed the [architecture sketch](architecture.md) without the planning conversation. The paraphrase and findings below refer to the first draft. The disposition records the changes made afterward.
 
 ## What this proposes

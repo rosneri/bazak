@@ -1,12 +1,14 @@
 # Goldfish delivery review
 
+This historical review predates implementation and records feedback on the draft plan. Its blockers describe that draft. The [delivery handoff](../PROJECT_STATUS.md) records current verification.
+
 ## What this proposes
 
 A local shopper can search for products, see the reply arrive in pieces, refine results, and reopen the conversation. The model identifies the request. An optional planner can use relevant earlier chats to fill gaps in a broad request. Application code validates the proposed search, applies catalog constraints, and saves the answer before announcing completion. A second app displays persisted scores and evidence from labeled evaluation runs.
 
 ## How the existing system works, per this document
 
-The shopper app is a Next.js starter, and the management app has configuration. The repository has initial Zod contracts for chat and discovery, a DummyJSON page adapter with tests, and a partial Prisma evaluation store backed by local PostgreSQL. The route handlers, durable turns, evaluation runner, and user interfaces are planned work. [Concepts brief](concepts_brief.md#analysis) · [Project status](../PROJECT_STATUS.md)
+The shopper app is a Next.js starter, and the management app has configuration. The repository has initial Zod contracts for chat and discovery, a DummyJSON page adapter with tests, and a partial Prisma evaluation store backed by local PostgreSQL. The route handlers, durable turns, evaluation runner, and user interfaces are planned work. [Concepts brief](concepts_brief.md#analysis-at-design-time) · [Project status](../PROJECT_STATUS.md)
 
 ## Findings
 

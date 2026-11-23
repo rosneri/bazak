@@ -2,7 +2,9 @@
 
 **2026-11-23 · Formal implementation plan · Neriya Rosner**
 
-A shopper should be able to ask for two fragrances under $50, see text arrive and catalog cards appear, reload, then ask for a cheaper option in that same conversation. A reviewer should be able to run a labeled suite locally and see which checks passed and how long each turn took. The unit of delivery is that working journey across two local Next.js apps and PostgreSQL. The [assignment](../assignment/instructions.md), [architecture](architecture.md), [earlier review](comprehension_report.md), [working agreements](../AGENTS.md) and [starter status](../PROJECT_STATUS.md) establish the baseline.
+A shopper should be able to ask for two fragrances under $50, see text arrive and catalog cards appear, reload, then ask for a cheaper option in that same conversation. A reviewer should be able to run a labeled suite locally and see which checks passed and how long each turn took. The unit of delivery is that working journey across two local Next.js apps and PostgreSQL. The [assignment](../assignment/instructions.md), [architecture](architecture.md), [earlier review](comprehension_report.md), [working agreements](../AGENTS.md) and [delivery handoff](../PROJECT_STATUS.md) establish the baseline.
+
+**Historical design.** The checklist below preserves the proposed acceptance criteria. Current delivery evidence is in the [handoff](../PROJECT_STATUS.md) and differences are in the [drift report](2026-11-23_DRIFT_REPORT.md).
 
 The [concepts brief](concepts_brief.md) records the author’s choices. The [independent delivery review](delivery-review.md) informed the contracts below. Local numeric budgets, the relative-price baseline, and the retry payload are engineering decisions. They can be tested and explained independently of the author’s selection of the SDK, build profiles, history-aware planner and test strategy.
 

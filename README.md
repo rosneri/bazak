@@ -1,69 +1,76 @@
 # Bazak shopping copilot
 
-The repository contains a Next.js App Router starter and the [assignment brief](assignment/instructions.md). The design notes below describe the proposed application.
-
-The [architecture sketch](docs/architecture.md) maps the shopper journeys, domain models, service boundaries, and streaming infrastructure.
+Bazak is a local chat for finding products in DummyJSON. Ask for two fragrances under $50, inspect the cards, then ask for a cheaper one. Reload the page or reopen the chat from history to see exactly which products and prices were shown. A second app shows the evidence behind labeled evaluation runs.
 
 ## Run locally
 
-Install [proto](https://moonrepo.dev/proto) and Docker with Compose, then run these commands from the repository root. Proto installs the pinned Node.js, pnpm, and Moon versions.
+Install [proto](https://moonrepo.dev/proto) and start Docker with Compose. Run these commands from the repository root. The toolchain versions are pinned in [.prototools](.prototools).
 
 ```sh
 proto install
-pnpm install
+pnpm install --frozen-lockfile
+pnpm db:generate
 pnpm db:up
-pnpm dev
 ```
 
-Open [localhost on port 3000](http://localhost:3000). The web starter runs independently of the database. For local development, connect to `postgresql://bazak:bazak_local@127.0.0.1:55432/bazak`. Use `POSTGRES_PORT` to change the host port or set `POSTGRES_PASSWORD` before initializing the volume. `pnpm db:down` stops the service and preserves its data.
+The last two commands generate Prisma's client and start PostgreSQL with the checked-in migrations. Keep PostgreSQL running for both apps.
 
-## Development checks
+| To run                            | Commands from the root                                             | Open                                     |
+| --------------------------------- | ------------------------------------------------------------------ | ---------------------------------------- |
+| Fixture demo, no credentials      | `pnpm build:fixture`, then `pnpm start:fixture`                    | [Shopper](http://127.0.0.1:3000)         |
+| Shopper with OpenAI and DummyJSON | `pnpm dev`                                                         | [Shopper](http://127.0.0.1:3000)         |
+| Evaluation report                 | `pnpm evaluate`, then `pnpm dev:management` in a separate terminal | [Evaluation runs](http://127.0.0.1:3002) |
 
-`pnpm install` installs Lefthook and the project-local Hallmark design skill. On commit, Lefthook formats staged files with Oxfmt and stages the fixes. On push, it runs `pnpm check` across the workspace. The same command runs locally and checks formatting, lint, TypeScript, React Doctor, Hallmark's UI source checks, the Compose configuration, any workspace test scripts, and production builds.
+Choose one shopper process on port 3000. For live requests, set `OPENAI_API_KEY` in the server environment or in a private, gitignored `.env` at the workspace root. The first inference reads it. Building, opening history and using the fixture work without credentials. For production builds run `pnpm build`, then `pnpm start` and `pnpm start:management` in separate terminals. Next resolves a static service alias to the live or fixture implementation during the build. Their outputs are `.next` and `.next-fixture`.
 
-Moon discovers projects from workspace package manifests and uses their workspace dependencies to build the project graph. The workspace checks use Moon to run each package's TypeScript, test, and build scripts where present. Run `moon projects` to list projects, `moon project web` to inspect the web app, or `moon run web:typecheck` to check that project.
+Compose binds PostgreSQL to loopback port 55432 by default. Export matching `POSTGRES_PORT` and `POSTGRES_PASSWORD` to the processes if overriding the initial Compose settings. The Prisma adapter also accepts `DATABASE_URL`. Both apps and the evaluation runner need the same database to share results. `pnpm db:down` stops Compose and preserves the named volume.
 
-Use `pnpm format` to format the workspace and `pnpm lint` for Oxlint with the 18 generic [anti-slop rules](https://github.com/dmmulroy/anti-slop/tree/c44ef22ca116d0ba62a3ff663a0bd13a3f3fa40b). React Doctor scans the full React project and blocks on warnings. The [Hallmark skill](https://github.com/Nutlope/hallmark/tree/04977e15f3dfd6ee4b74c887dac3eb52665d6c92/skills/hallmark) guides visual review as the UI develops. Its static checker runs with `pnpm ui:check`.
+## Architecture and framework choices
 
-## Workspace layout
+The shopper is a Next.js App Router app. The browser submits a turn with a stable ID and reads server-sent events from that HTTP POST. The server sends each verified product group as it becomes available. For a search reply, the model streams two short framing sentences. The service emits each approved sentence as soon as it is complete and discards unrecognized wording. Prices, availability and coverage come from catalog observations and application templates. This trade-off limits expressive prose and prevents the framing model from inventing a price. A single versioned product part drives the same React card during streaming and replay.
 
-- `apps/*` contains deployable apps. `apps/web` owns the shopper interface, HTTP routes, and dependency wiring. The management app is planned for evaluation reporting.
-- `packages/features/*` groups code by capability. Each feature owns its use cases and ports in `application` and its business rules and schemas in `domain`. Add `representation` for feature-specific view models or components and `infrastructure` for small, feature-local implementation details when needed. Chat turns and conversation management belong to the conversation feature.
-- `packages/adapters/dummyjson` implements the product-discovery catalog port against the supplied DummyJSON contract. Adapters depend on feature-owned contracts, and apps wire their implementations into use cases.
-- `packages/libraries/ui` owns the shared Tailwind CSS theme and shadcn/ui primitives. Import the Button from `@bazak/ui/components/button`. To add another primitive, run `pnpm dlx shadcn@4.23.0 add <component> -c packages/libraries/ui` from the repository root.
-- `packages/libraries/*` holds reusable code shared across apps or features.
+The production adapter uses the Vercel AI SDK and the assignment model, `gpt-6-luna`, for structured intent, optional planning and streaming. A direct OpenAI client would leave the integration to translate the structured response and provider stream into validated application events. Mastra would add a second orchestrator around a short sequence whose allowed operations, timeouts and retries already belong to the conversation service. Using small SDK ports also lets the fixture replace both model and catalog while exercising the same HTTP handlers, PostgreSQL transactions and UI. The wire format is local, with one supported product presentation. [Current architecture and eight journeys](docs/architecture.md)
 
-## Proposed architecture
+## How retrieval works
 
-The conversation feature defines the chat message and send-turn schemas and names OpenAI as the default provider. The planned web app composition will resolve that default to a Vercel AI SDK language model and inject the model into the chat turn. The fallback provider is optional and remains unset.
+- A clear request such as “two fragrances under $50” goes straight to a known category. The application calls `GET /products/category/{slug}` or `GET /products/search?q=…` with `limit=20` and `skip`. It filters the observed category, keyword matches, stock and cent-based prices, ranks in the requested direction, and keeps the first snapshot per ID. “Under $50” excludes $50. “Up to $50” includes it.
+- Discovery inspects at most three pages per group and shows up to ten products (three by default). Incomplete or inconsistent pagination is labeled partial, including when the service found zero matches. Even a complete scan reflects observations taken across separate requests.
+- For a broad category such as “a few fragrances,” the planner may use up to five same-category turns from earlier chats in this shopper's scope. One batched model call can suggest a temporary keyword, a price-order preference or a clarifying question. Current constraints win. If a hinted search underfills, the remaining requests search the base category. With no relevant history, the category goes directly to discovery.
+- “Something cheap and cool” calls for clarification. “A flight to Tokyo” gets catalog-scope guidance. Neither requires a catalog call. Up to three independent requests receive ordered groups, each with its own constraints. An ordinary catalog error becomes a group result, so the shopper can retry that group while keeping successful cards. Expiry of the shared retrieval deadline interrupts the whole attempt.
+- A cheaper follow-up carries prior filters and searches strictly below the lowest displayed price in the referenced group. A named card supplies its own comparison price. A question about current price or stock uses `GET /products/{id}` after verifying that the product was shown in this chat. A replay uses the old snapshot. [Catalog adapter](packages/adapters/dummyjson/src/catalog.ts) · [Discovery rules](packages/features/product-discovery/src/application/discovery.ts)
 
-The proposed chat interface uses Google's A2UI for product widgets. Each chat turn uses an HTTP POST whose response streams server-sent events (SSE). PostgreSQL will store conversations and evaluation results. The initial design assumes a single local user and fetches catalog results on demand.
+## Conversation state and recovery
 
-### Schemas and validation
+PostgreSQL gives the browser a durable, ordered history and both tabs one authority for in-flight work. Prisma persists threads, user turns, numbered attempts and one committed assistant message with its product snapshots. Transactions and a one-running-turn index protect a thread without holding a database lock during model or catalog calls. Client-generated IDs make repeated create and send requests idempotent. The URL `/conversations/<id>` reopens the thread.
 
-Zod is the source of truth for runtime schemas and their TypeScript types. Each package that uses Zod declares `"zod": "catalog:"` to use the version pinned in the workspace. Follow the [working agreements](AGENTS.md) for schema and field descriptions.
+The server emits `done` after the final write commits. If a stream disconnects, the client reads the stored turn. It replays a completed answer, polls an active attempt, or offers retry for the failed generation. An abandoned attempt expires after 90 seconds. A competing tab keeps its draft. Provider and catalog timeouts are bounded and automatic SDK retries are disabled.
 
-- **Domain models.** Each domain package owns its schemas and derives its types with `z.infer`. Creation, updates, and loading stored data all go through the domain schema. Put cross-field rules in refinements so every path enforces them. For example, a price range is valid only when its minimum is at most its maximum. [Zod parsing and type inference](https://zod.dev/basics)
-- **AI responses.** The chat turn will supply a Zod output schema to the AI SDK for each structured response. Text can stream as it arrives. Before a structured result drives a catalog query, renders a product widget, or gets saved, the completed result must pass validation and any applicable domain rules. The turn will handle malformed or interrupted results as failures. [AI SDK structured output](https://ai-sdk.dev/docs/ai-sdk-core/generating-structured-data)
+A full or unavailable database can prevent even the failure state from being written. Visible previews are then unsaved. Restore storage and reload to reconcile the turn, allowing the lease to expire if needed. Invalid stored message data produces a thread-specific error. Clearing browser storage leaves previously saved conversations in PostgreSQL. Removing the PostgreSQL volume loses those records. The UI has no thread-deletion operation. [Storage contract](packages/adapters/evaluation-store/README.md)
 
-## Catalog operations
+## Verification and measured results
 
-The assignment uses DummyJSON as the product catalog. Parameters in braces are part of the path. [Catalog API](https://dummyjson.com/products) · [Supplied OpenAPI specification](assignment/dummyjson_products_openapi.json)
+| Command                                | What it exercises                                                                                                                                                                                                                                                                                      |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm test`                            | Service-free Node tests for retrieval boundaries, history planning, turn ownership, retries, corrupt data, HTTP status codes and split SSE frames.                                                                                                                                                     |
+| `pnpm test:integration`                | Real PostgreSQL migration, two threads, ordered replay, follow-up and idempotent result import, and planner history for multiple same-category searches and a clarification alongside a successful lookup.                                                                                             |
+| `pnpm test:e2e`                        | Google Chrome sends a query, sees the first approved sentence while the fixture deliberately holds the second, checks the card and image fallback, reloads after clearing browser storage, refines the search and reopens history. The running management app then reads a newly persisted evaluation. |
+| `pnpm check`                           | Formatting, lint, TypeScript, React Doctor, Hallmark, Compose configuration, package tests, production builds and the database/browser journey.                                                                                                                                                        |
+| `pnpm evaluate` / `pnpm evaluate:live` | Record the nine-case fixture suite or the two-case live suite. The live suite consumes assignment API usage. Each command prints a management URL for its run.                                                                                                                                         |
 
-| Path                        | Query parameters                             | Use in the copilot                                                    |
-| --------------------------- | -------------------------------------------- | --------------------------------------------------------------------- |
-| `/products/search`          | `q` (required), `limit`, `skip`              | Find candidates from a search term.                                   |
-| `/products/category-list`   | None                                         | Get the valid category slugs.                                         |
-| `/products/category/{slug}` | `limit`, `skip`                              | Browse a known category.                                              |
-| `/products`                 | `limit`, `skip`, `select`, `sortBy`, `order` | Browse the catalog or request a price-ordered page.                   |
-| `/products/{id}`            | None                                         | Look up a specific card or refresh its stored price and availability. |
-| `/products/categories`      | None                                         | Get category display names, slugs, and URLs when a UI needs labels.   |
+The integration and browser scripts create, migrate and drop a disposable database. The browser check needs installed Google Chrome and free ports 3174 and 3175. Each labeled case has its own history scope. The report shows the expected labels alongside observed decisions, queries and products. Execution errors and unscored dimensions are reported separately from semantic disagreements.
 
-For a request like “show me two fragrances under $50,” the model could return a category, budget, and desired count. The application would validate the slug against the catalog, choose the category query, and apply the budget and stock rules to the results. The adapter would issue the request and validate the response. A bounded search should report whether it exhausted the candidates before claiming it found the cheapest item or that nothing matches.
+On 23 November 2026, one fresh PostgreSQL fixture run passed **9/9 cases**. Intent matched **9/9**, product constraints **7/7**, and abstention with zero catalog lookups **2/2**. First content took **6–28 ms**, total **7–32 ms**. A separate single production turn returned one real product with one intent call, one catalog call and one reply call. First content took **4,527 ms**, total **6,712 ms**. First content measures server emission of the first card or text, excluding status. Both timings describe those runs on this machine. The production sample did not exercise the history planner or establish an accuracy rate.
 
-## Decisions to discuss
+## Limits and next steps
 
-- **Chat and widgets.** assistant-ui offers React primitives for the composer, message list, and thread selection. Its AI SDK runtime handles client-side conversation state, and a history adapter can load messages from our database. A2UI describes the product surface inside a message. A useful first test is whether a stored product widget renders again after a refresh without calling the model. [assistant-ui architecture](https://www.assistant-ui.com/docs/architecture) · [A2UI overview](https://a2ui.org/concepts/overview/)
-- **Persistence.** The PostgreSQL schema still needs to account for ordered messages, retries, and a conversation cleared while a response is streaming. JSONB can hold the varying text and product-widget payloads. [PostgreSQL JSON types](https://www.postgresql.org/docs/current/datatype-json.html)
-- **Retrieval and freshness.** A typed query builder can limit requests to known operations, the catalog host, and supported fields. The supplied spec exposes budget and stock as product data. Decide how many pages to inspect, when to ask the user for clarification, and when a historical product card should refresh.
-- **Evaluation.** Use Vitest for query construction, domain rules, component tests, and adapter integration. Use Playwright to send a message, observe streaming and product cards, then reload and resume the conversation. For model evaluations, label expected intent and product constraints independently of the model being evaluated. Record constraint satisfaction, correct abstention, time to first output, and total latency by run. A local database can support a dashboard from these measurements.
+This is a loopback application for one local shopper. Both shopper profiles share history when pointed at the same database. The deterministic fixture understands a limited set of phrases and products. The provider may interpret unfamiliar wording differently. The catalog offers text and category search with changing pages, and a capped scan can miss better matches. A snapshot stores image URLs, so image availability can change independently of saved text and prices.
+
+With another week, the first priorities would be a held-out set of real shopper paraphrases (including mixed and history-informed requests), a relevance review against a larger catalog sample, and repeated live measurements. Comparing the current model call for two approved sentences with application-generated framing would quantify how much latency that call buys. The current browser case covers one desktop Chrome journey. Screen-reader and mobile-browser behavior need their own sessions.
+
+## Source map
+
+- [Applications](apps/README.md) · shopper UI and HTTP routes, evaluation dashboard.
+- [Packages](packages/README.md) · feature-owned Zod schemas and rules, catalog and PostgreSQL adapters, shared UI.
+- [Scripts](scripts/README.md) · evaluation and isolated database checks.
+- [Repository tools](tools/README.md) · local lint rules.
+- [Handoff and outstanding evidence](PROJECT_STATUS.md) · [Assignment](assignment/instructions.md).
