@@ -24,6 +24,7 @@ Use `pnpm format` to format the workspace and `pnpm lint` for Oxlint with the 18
 ## Proposed architecture
 
 - `apps/web` hosts the Next.js frontend, HTTP routes, and the code that wires the adapters together.
+- `packages/libraries/ui` owns the shared Tailwind CSS theme and shadcn/ui primitives. Import the Button from `@bazak/ui/components/button`. To add another primitive, run `pnpm dlx shadcn@4.23.0 add <component> -c packages/libraries/ui` from the repository root.
 - `packages/models/*` groups code by domain, starting with product discovery and conversations. Business rules are pure functions. Each domain can expose its React components through a separate presentation entry point.
 - `packages/providers/*` holds adapters for the catalog, intent classification, and answer generation. The two model adapters can share an OpenAI client while exposing distinct operations.
 - `packages/libraries/*` holds low-level clients and generated API types. Orval can generate a server-side client from the supplied DummyJSON OpenAPI spec. To generate React Query hooks for the app's own conversation endpoints, define those endpoints in a separate API contract. [Orval React Query guide](https://orval.dev/docs/guides/react-query/)
