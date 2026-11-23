@@ -12,6 +12,12 @@ import type {
   HistoryEvidence,
 } from "@bazak/conversation/application/repository";
 
+export const historyCriteriaSchema = z
+  .array(discoveryCriteriaSchema)
+  .min(1)
+  .max(3)
+  .describe("All successful search criteria for one category in one earlier turn, in group order.");
+
 const groupIndex = z.int().min(0).max(2).describe("Original zero-based group index.");
 
 export const plannerProposalsSchema = z
@@ -90,9 +96,9 @@ export async function planGroups(
         evidence = [];
 
         for (const item of prior) {
-          const parsed = discoveryCriteriaSchema.safeParse(item.criteria);
+          const parsed = historyCriteriaSchema.safeParse(item.criteria);
 
-          if (parsed.success && parsed.data.category === category)
+          if (parsed.success && parsed.data.every((criteria) => criteria.category === category))
             evidence.push({ criteria: parsed.data, text: item.text.slice(0, 240) });
 
           if (evidence.length === 5) break;

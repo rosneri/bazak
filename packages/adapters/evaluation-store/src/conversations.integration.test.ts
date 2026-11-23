@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { after, test } from "node:test";
 import { createFixtureServices } from "../../../../apps/web/src/server/services.test.ts";
+import { composeServices } from "../../../../apps/web/src/server/services.ts";
+import { fixtureCatalog, fixtureModel } from "../../../../apps/web/src/server/fixtures.ts";
 import { fixtureCases } from "@bazak/evaluations/cases";
 import { observe, score } from "@bazak/evaluations/evaluate";
 import { evaluationResultSchema } from "@bazak/evaluations";
@@ -78,4 +80,52 @@ test("two threads reload in order and a labeled fixture result persists with its
   assert.equal(await saveResults([result]), 1);
   assert.equal(await saveResults([result]), 0);
   assert.deepEqual(await readRun(runId), [result]);
+
+  const groupedPrompt = "Show me one light fragrance under $50 and one fragrance under $18.";
+  await submit({ turnId: randomUUID(), text: groupedPrompt });
+  const repository = createConversationRepository(scope);
+  const evidence = await repository.relevantHistory(old, "fragrances");
+  assert.equal(evidence[0].text, groupedPrompt);
+  assert.deepEqual(
+    evidence[0].criteria.map((criteria) => criteria.maxPrice),
+    [50, 18],
+  );
+
+  const clock = () => new Date();
+
+  const planning = composeServices(
+    repository,
+    fixtureModel,
+    {
+      async plan(groups) {
+        assert.deepEqual(
+          groups.map((group) => group.index),
+          [0],
+        );
+
+        return [{ kind: "clarify", index: 0, question: "Which fragrance notes do you prefer?" }];
+      },
+    },
+    fixtureCatalog(clock),
+    clock,
+  );
+
+  const mixed = await planning.chat.send(old, {
+    turnId: randomUUID(),
+    text: "Show me a few fragrances and one lamp under $40.",
+  });
+
+  const events = [];
+
+  for await (const event of mixed) events.push(event);
+  assert.equal(events.at(-1)?.type, "done");
+  const [resolved] = (await planning.management.load(old)).turns;
+  assert.deepEqual(
+    observe(resolved).groups.map((group) => group.kind),
+    ["clarify", "matched"],
+  );
+  assert.equal(resolved.metrics?.catalogCalls, 1);
+  assert.deepEqual(await repository.relevantHistory(current, "fragrances"), []);
+  const lamps = await repository.relevantHistory(current, "home-decoration");
+  assert.equal(lamps[0].criteria[0].keywords, "lamp");
 });

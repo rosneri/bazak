@@ -11,10 +11,11 @@ import {
   type AttemptMetrics,
 } from "@bazak/conversation/domain/turn";
 import {
-  discoveryCriteriaSchema,
+  type DiscoveryCriteria,
   intentDecisionSchema,
   type IntentDecision,
 } from "@bazak/product-discovery/domain/discovery";
+import { historyCriteriaSchema } from "@bazak/conversation/application/query-planner";
 import { leaseExpired, shouldRetry } from "./attempts.ts";
 import { database } from "./client.ts";
 import {
@@ -164,18 +165,32 @@ export function createConversationRepository(
           decision: parsedDecision ?? Prisma.DbNull,
         },
       });
-      const searches = [];
+      const searches = new Map<string, DiscoveryCriteria[]>();
 
-      for (const part of parsedAssistant?.parts ?? []) {
-        if (part.type !== "products") continue;
-        const criteria = part.group.criteria;
+      if (parsedMetrics.queries.length && parsedAssistant) {
+        for (const part of parsedAssistant.parts) {
+          if (part.type !== "products") continue;
+          const { kind, criteria } = part.group;
 
-        if (criteria?.category)
-          searches.push({ threadId, turnId, endedAt: now, category: criteria.category, criteria });
+          if ((kind !== "matched" && kind !== "empty") || !criteria?.category) continue;
+          const grouped = searches.get(criteria.category) ?? [];
+          grouped.push(criteria);
+          searches.set(criteria.category, grouped);
+        }
       }
 
-      if (searches.length)
-        await tx.searchEvidence.createMany({ data: searches, skipDuplicates: true });
+      if (searches.size) {
+        await tx.searchEvidence.createMany({
+          data: Array.from(searches, ([category, criteria]) => ({
+            threadId,
+            turnId,
+            endedAt: now,
+            category,
+            criteria,
+          })),
+        });
+      }
+
       await tx.shoppingThread.update({ where: { id: threadId }, data: { updatedAt: now } });
 
       return true;
@@ -242,7 +257,7 @@ export function createConversationRepository(
         });
 
         return evidence.map((row) => {
-          const criteria = discoveryCriteriaSchema.safeParse(row.criteria);
+          const criteria = historyCriteriaSchema.safeParse(row.criteria);
 
           if (!criteria.success) throw new RepositoryError("corrupt_thread");
 

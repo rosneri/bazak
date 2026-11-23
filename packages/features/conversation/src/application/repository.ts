@@ -26,7 +26,7 @@ export class RepositoryError extends Error {
 }
 
 export interface HistoryEvidence {
-  criteria: DiscoveryCriteria;
+  criteria: DiscoveryCriteria[];
   text: string;
 }
 

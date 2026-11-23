@@ -42,7 +42,7 @@ test("only the broad category in a mixed request receives history, bounded to fi
         reads.push(category);
 
         return Array.from({ length: 10 }, () => ({
-          criteria: { category: "fragrances", maxPrice: 100 },
+          criteria: [{ category: "fragrances", maxPrice: 100 }],
           text: "Light citrus scents ".repeat(30),
         }));
       },
@@ -100,7 +100,7 @@ test("empty history skips the planner and an uncorrelated response falls back to
   const earlier = {
     ...repository,
     async relevantHistory() {
-      return [{ criteria: { category: "fragrances" as const }, text: "Floral scents" }];
+      return [{ criteria: [{ category: "fragrances" as const }], text: "Floral scents" }];
     },
   };
 
