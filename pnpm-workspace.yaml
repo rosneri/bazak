@@ -4,6 +4,9 @@ packages:
   - packages/providers/*
   - packages/libraries/*
 
+catalog:
+  zod: 4.6.7
+
 permissions:
   lefthook:
     build: false

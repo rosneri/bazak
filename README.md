@@ -31,6 +31,13 @@ Use `pnpm format` to format the workspace and `pnpm lint` for Oxlint with the 18
 
 The proposed stack uses the Vercel AI SDK for model calls and streaming, and Google's A2UI for product widgets. PostgreSQL will store conversations and evaluation results. The initial design assumes a single local user and fetches catalog results on demand.
 
+### Schemas and validation
+
+Zod is the source of truth for runtime schemas and their TypeScript types. Each package that uses Zod declares `"zod": "catalog:"` to use the version pinned in the workspace.
+
+- **Domain models.** Each domain package owns its schemas and derives its types with `z.infer`. Creation, updates, and loading stored data all go through the domain schema. Put cross-field rules in refinements so every path enforces them. For example, a price range is valid only when its minimum is at most its maximum. [Zod parsing and type inference](https://zod.dev/basics)
+- **AI responses.** The provider adapter supplies a Zod output schema to the AI SDK for each structured response. Text can stream as it arrives. Before a structured result drives a catalog query, renders a product widget, or gets saved, the completed result must pass validation and any applicable domain rules. A malformed or interrupted result follows the adapter's error path. [AI SDK structured output](https://ai-sdk.dev/docs/ai-sdk-core/generating-structured-data)
+
 ## Catalog operations
 
 The supplied [OpenAPI specification](assignment/dummyjson_products_openapi.json) defines these GET operations. Parameters in braces are part of the path.
