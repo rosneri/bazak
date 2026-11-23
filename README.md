@@ -4,15 +4,22 @@ The repository contains a Next.js App Router starter and the [assignment brief](
 
 ## Run locally
 
-Install Docker with Compose, then run these commands from the repository root.
+Install [proto](https://moonrepo.dev/proto) and Docker with Compose, then run these commands from the repository root.
 
 ```sh
+proto install
 pnpm install
 pnpm db:up
 pnpm dev
 ```
 
 Open [localhost on port 3000](http://localhost:3000). The web starter runs independently of the database. For local development, connect to `postgresql://bazak:bazak_local@127.0.0.1:55432/bazak`. Use `POSTGRES_PORT` to change the host port or set `POSTGRES_PASSWORD` before initializing the volume. `pnpm db:down` stops the service and preserves its data.
+
+## Development checks
+
+`pnpm install` installs Lefthook and the project-local Hallmark design skill. On commit, Lefthook formats staged files with Oxfmt and stages the fixes. On push, it runs `pnpm check` across the workspace. Run that command locally to check formatting, lint, TypeScript, React Doctor, Hallmark's UI source checks, the Compose configuration, any workspace test scripts, and the production build.
+
+Use `pnpm format` to format the workspace and `pnpm lint` for Oxlint with the 18 generic [anti-slop rules](https://github.com/dmmulroy/anti-slop/tree/c44ef22ca116d0ba62a3ff663a0bd13a3f3fa40b). React Doctor scans the full React project and blocks on warnings. The [Hallmark skill](https://github.com/Nutlope/hallmark/tree/04977e15f3dfd6ee4b74c887dac3eb52665d6c92/skills/hallmark) guides visual review as the UI develops. Its static checker runs with `pnpm ui:check`.
 
 ## Proposed architecture
 
@@ -27,14 +34,14 @@ The proposed stack uses the Vercel AI SDK for model calls and streaming, and Goo
 
 The supplied [OpenAPI specification](assignment/dummyjson_products_openapi.json) defines these GET operations. Parameters in braces are part of the path.
 
-| Path | Query parameters | Use in the copilot |
-| --- | --- | --- |
-| `/products/search` | `q` (required), `limit`, `skip` | Find candidates from a search term. |
-| `/products/category-list` | None | Get the valid category slugs. |
-| `/products/category/{slug}` | `limit`, `skip` | Browse a known category. |
-| `/products` | `limit`, `skip`, `select`, `sortBy`, `order` | Browse the catalog or request a price-ordered page. |
-| `/products/{id}` | None | Look up a specific card or refresh its stored price and availability. |
-| `/products/categories` | None | Get category display names, slugs, and URLs when a UI needs labels. |
+| Path                        | Query parameters                             | Use in the copilot                                                    |
+| --------------------------- | -------------------------------------------- | --------------------------------------------------------------------- |
+| `/products/search`          | `q` (required), `limit`, `skip`              | Find candidates from a search term.                                   |
+| `/products/category-list`   | None                                         | Get the valid category slugs.                                         |
+| `/products/category/{slug}` | `limit`, `skip`                              | Browse a known category.                                              |
+| `/products`                 | `limit`, `skip`, `select`, `sortBy`, `order` | Browse the catalog or request a price-ordered page.                   |
+| `/products/{id}`            | None                                         | Look up a specific card or refresh its stored price and availability. |
+| `/products/categories`      | None                                         | Get category display names, slugs, and URLs when a UI needs labels.   |
 
 For a request like “show me two fragrances under $50,” the model could return a category, budget, and desired count. The adapter would validate the slug, fetch the category, then apply the budget and stock rules to the results. A bounded search should report whether it exhausted the candidates before claiming it found the cheapest item or that nothing matches.
 

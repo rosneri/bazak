@@ -1,0 +1,12 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 100,
+  "ignorePatterns": [
+    "**/.next/**",
+    "**/next-env.d.ts",
+    ".agents/**",
+    "assignment/**",
+    "pnpm-lock.yaml",
+    "tools/oxlint/anti-slop/**"
+  ]
+}

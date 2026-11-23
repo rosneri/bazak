@@ -3,3 +3,13 @@ packages:
   - packages/models/*
   - packages/providers/*
   - packages/libraries/*
+
+permissions:
+  lefthook:
+    build: false
+  "hallmark@https://codeload.github.com/Nutlope/hallmark/tar.gz/04977e15f3dfd6ee4b74c887dac3eb52665d6c92":
+    skills: true
+
+skills:
+  dirs:
+    - .agents/skills

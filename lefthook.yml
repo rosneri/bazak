@@ -1,0 +1,12 @@
+pre-commit:
+  jobs:
+    - name: Format staged files
+      glob: "*.{cjs,cts,css,graphql,html,js,json,jsonc,jsx,md,mjs,mts,scss,toml,ts,tsx,yaml,yml}"
+      exclude: '^(assignment/|tools/oxlint/anti-slop/|pnpm-lock\.yaml$)'
+      run: pnpm exec oxfmt --write --no-error-on-unmatched-pattern {staged_files}
+      stage_fixed: true
+
+pre-push:
+  jobs:
+    - name: Check workspace
+      run: pnpm check
