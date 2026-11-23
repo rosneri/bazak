@@ -7,8 +7,9 @@ The shopper app serves chat and the evaluation app reads run evidence. Both use 
 ```mermaid
 flowchart TB
   ui["Shopper browser · React"] -->|"JSON requests and POST/SSE"| route["Shopper routes · 3000"]
-  route --> management["Create, list and load chats"]
-  route --> turns["Send or retry turn"]
+  route --> controller["Conversation transport controller"]
+  controller --> management["Create, list and load chats"]
+  controller --> turns["Send or retry turn"]
   turns -->|"Intent, optional planner, streamed framing"| model["Model ports"]
   model -->|"Production"| sdk["Vercel AI SDK · OpenAI gpt-6-luna"]
   model -->|"Fixture"| script["Scripted decisions and framing"]
@@ -26,6 +27,8 @@ flowchart TB
 ```
 
 [Next configuration](../apps/web/next.config.ts) binds the service module at build time. [Composition](../apps/web/src/server/services.ts) injects the model, planner, clock and catalog into the feature services. The [SDK adapter](../apps/web/src/server/sdk.ts) owns provider-specific calls and validates their structured outputs. A ready search skips planning. For a broad category with relevant same-category history from other threads, the planner proposes a per-turn preference or clarifying question. With no evidence or an invalid proposal the service uses explicit criteria.
+
+The controller validates requests, renders JSON and SSE responses, and passes request cancellation to the conversation service. Both build profiles use the same controller and error logging. [Shopper server composition](../apps/web/src/server/README.md)
 
 A card uses a local versioned message part, shared React primitives and a catalog snapshot. The browser renders the same part from a live event or a saved answer. General A2UI interoperability and a strategy for selecting among multiple card variants remain future possibilities.
 

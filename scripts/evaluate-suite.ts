@@ -23,7 +23,7 @@ async function send(services: ShopperServices, threadId: string, prompt: string)
   let diagnostic: string | null = null;
 
   for await (const event of stream) {
-    if (event.type === "error") diagnostic = event.code + " — " + event.message;
+    if (event.type === "error") diagnostic = event.code;
   }
 
   const history = await services.management.load(threadId);

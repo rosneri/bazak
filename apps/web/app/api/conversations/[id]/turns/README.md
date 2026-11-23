@@ -6,7 +6,7 @@
 
 ## Invariants
 
-The client supplies a stable turn ID and text. Accepted sends receive a UTF-8 SSE response. A conflicting new turn receives HTTP 409.
+The client supplies a stable turn ID and text. Accepted sends receive a UTF-8 SSE response with one JSON object per `data` frame. A conflicting new turn receives HTTP 409 with a JSON error. A failure during streaming ends the response with an `error` event, so the client can reload the saved turn.
 
 ## Side effects
 

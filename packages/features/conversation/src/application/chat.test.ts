@@ -4,13 +4,13 @@ import { test } from "node:test";
 import {
   createConversationService,
   SAFE_FRAMING,
+  type ConversationEvent,
   type ConversationModel,
 } from "@bazak/conversation/application/chat";
 import {
   RepositoryError,
   type ConversationRepository,
 } from "@bazak/conversation/application/repository";
-import type { TurnEvent } from "@bazak/conversation/domain/turn";
 import { createDiscoveryService } from "@bazak/product-discovery/application/discovery";
 import type { ProductCatalog } from "@bazak/product-discovery/application/catalog";
 import type { IntentDecision } from "@bazak/product-discovery/domain/discovery";
@@ -84,8 +84,8 @@ function setup(options: Options = {}) {
   return { service, id: conversation.id, turns, send };
 }
 
-async function drain(stream: Promise<AsyncIterable<TurnEvent>>) {
-  const events: TurnEvent[] = [];
+async function drain(stream: Promise<AsyncIterable<ConversationEvent>>) {
+  const events: ConversationEvent[] = [];
 
   for await (const event of await stream) events.push(event);
 

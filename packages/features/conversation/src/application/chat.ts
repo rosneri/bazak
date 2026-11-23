@@ -31,6 +31,7 @@ import {
   type Acquisition,
   type Clock,
   type ConversationRepository,
+  type RepositoryCode,
 } from "@bazak/conversation/application/repository";
 
 export type { ContextTurn } from "#application/context";
@@ -38,6 +39,12 @@ export type { ContextTurn } from "#application/context";
 export { sendTurnInputSchema } from "@bazak/conversation/domain/turn";
 
 export { SAFE_FRAMING } from "#application/framing";
+
+export type TurnErrorCode = RepositoryCode | "provider_configuration" | "attempt_failed";
+
+export type ConversationEvent =
+  | Exclude<TurnEvent, { type: "error" }>
+  | { type: "error"; turnId: string; code: TurnErrorCode };
 
 export interface ModelInput {
   text: string;
@@ -73,23 +80,13 @@ function guidance(group: Exclude<SearchGroup, { kind: "search" }>): ResultGroup 
   };
 }
 
-function failureMessage(cause: unknown) {
-  if (cause instanceof RepositoryError)
-    return {
-      code: cause.code,
-      message: "This reply could not be saved. Reload the conversation to check its status.",
-    };
+function failureCode(cause: unknown): TurnErrorCode {
+  if (cause instanceof RepositoryError) return cause.code;
 
   if (cause instanceof Error && cause.name === "ProviderConfigurationError")
-    return {
-      code: "provider_configuration",
-      message: "Set OPENAI_API_KEY in the server environment, then retry this turn.",
-    };
+    return "provider_configuration";
 
-  return {
-    code: "attempt_failed",
-    message: "The reply was interrupted. Check the conversation and retry this turn.",
-  };
+  return "attempt_failed";
 }
 
 export function createConversationService(deps: Dependencies) {
@@ -100,7 +97,7 @@ export function createConversationService(deps: Dependencies) {
     acquisition: Acquisition,
     started: number,
     caller?: AbortSignal,
-  ): AsyncGenerator<TurnEvent> {
+  ): AsyncGenerator<ConversationEvent> {
     const { turn, accepted } = acquisition;
     const { turnId, attempt } = turn;
 
@@ -272,20 +269,16 @@ export function createConversationService(deps: Dependencies) {
       settled = true;
       yield { type: "done", turnId, assistant };
     } catch (error) {
-      let failure = failureMessage(error);
+      let code = failureCode(error);
 
       try {
         await fail(signal.aborted ? "interrupted" : "failed");
       } catch (storageError) {
-        failure = failureMessage(
-          storageError instanceof RepositoryError
-            ? storageError
-            : new RepositoryError("storage_unavailable"),
-        );
+        code = storageError instanceof RepositoryError ? storageError.code : "storage_unavailable";
       }
 
       settled = true;
-      yield { type: "error", turnId, ...failure };
+      yield { type: "error", turnId, code };
     } finally {
       if (!settled) await fail("interrupted");
     }

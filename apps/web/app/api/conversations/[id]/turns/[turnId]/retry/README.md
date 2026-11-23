@@ -6,7 +6,7 @@
 
 ## Invariants
 
-The JSON body carries a positive `expectedAttempt`. Only the currently failed or interrupted generation starts new work.
+The JSON body carries a positive `expectedAttempt`. Only the currently failed or interrupted generation starts new work. Retry uses the same JSON error and SSE response formats as [send](../../README.md).
 
 ## Side effects
 
