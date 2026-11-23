@@ -155,9 +155,11 @@
       </p>
       <p>
         <strong>Current state.</strong> The repository has a Next.js and TypeScript starter, shared
-        UI primitives, Zod, quality checks, and PostgreSQL in Docker Compose. The diagrams describe
-        the proposed application. The selected chat transport is an HTTP POST with a server-sent
-        events (SSE) response. The product component Strategy is a future UI decision.
+        UI primitives, Zod, quality checks, and PostgreSQL in Docker Compose. The conversation
+        feature defines chat message and send-turn schemas. The DummyJSON adapter implements
+        paginated keyword and category queries. The diagrams describe the proposed application,
+        including the AI SDK integration and HTTP POST with a server-sent events (SSE) response. The
+        product component Strategy is a future UI decision.
       </p>
       <nav aria-label="Sections">
         <a href="#code-architecture">Code architecture</a><a href="#user-journeys">User journeys</a
@@ -167,8 +169,9 @@
       </nav>
       <h2 id="code-architecture">Code architecture</h2>
       <p>
-        Arrows show calls or implemented interfaces. A port is an interface the application owns.
-        Next.js supplies the concrete adapters at startup.
+        Arrows show calls or injected dependencies. The web app will assemble the conversation
+        feature with a model from the Vercel AI SDK and wire the catalog and storage ports to their
+        implementations.
       </p>
       <figure class="diagram" data-key="code-architecture" aria-label="Code architecture">
         <svg
@@ -176,8 +179,8 @@
           width="100%"
           xmlns="http://www.w3.org/2000/svg"
           class="flowchart"
-          style="max-width: 856.25390625px"
-          viewBox="0 9.5 856.25390625 648.7828369140625"
+          style="max-width: 1033.2109375px"
+          viewBox="0 9.5 1033.2109375 803.1500244140625"
           role="graphics-document document"
           aria-roledescription="flowchart-v2"
         >
@@ -521,6 +524,34 @@
             #dgm0 .adapter tspan {
               fill: rgb(36, 53, 78) !important;
             }
+            #dgm0 .external rect {
+              fill: rgb(240, 236, 247) !important;
+              stroke: rgb(132, 108, 158) !important;
+              color: rgb(62, 44, 82) !important;
+            }
+            #dgm0 .external polygon {
+              fill: rgb(240, 236, 247) !important;
+              stroke: rgb(132, 108, 158) !important;
+              color: rgb(62, 44, 82) !important;
+            }
+            #dgm0 .external ellipse {
+              fill: rgb(240, 236, 247) !important;
+              stroke: rgb(132, 108, 158) !important;
+              color: rgb(62, 44, 82) !important;
+            }
+            #dgm0 .external circle {
+              fill: rgb(240, 236, 247) !important;
+              stroke: rgb(132, 108, 158) !important;
+              color: rgb(62, 44, 82) !important;
+            }
+            #dgm0 .external path {
+              fill: rgb(240, 236, 247) !important;
+              stroke: rgb(132, 108, 158) !important;
+              color: rgb(62, 44, 82) !important;
+            }
+            #dgm0 .external tspan {
+              fill: rgb(62, 44, 82) !important;
+            }
           </style>
           <g>
             <marker
@@ -736,161 +767,210 @@
               ></path>
             </marker>
             <g class="root">
-              <g class="clusters"></g>
+              <g class="clusters">
+                <g class="cluster" id="dgm0-conversation" data-look="classic">
+                  <rect
+                    style=""
+                    x="8"
+                    y="376.4015579223633"
+                    width="529.78515625"
+                    height="232.1468734741211"
+                  ></rect>
+                  <g class="cluster-label" transform="translate(198.619140625, 380.4015579223633)">
+                    <g>
+                      <rect class="background" style="stroke: none"></rect>
+                      <text y="-10.1" style="">
+                        <tspan class="text-outer-tspan row" x="0" y="-0.1em" dy="1.1em">
+                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
+                            Conversation
+                          </tspan>
+                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
+                            feature
+                          </tspan>
+                        </tspan>
+                      </text>
+                    </g>
+                  </g>
+                </g>
+              </g>
               <g class="edgePaths">
                 <path
-                  d="M508.742,58.5L495.865,64.114C482.988,69.728,457.234,80.956,444.357,92.953C431.48,104.95,431.48,117.717,431.48,124.1L431.48,130.484"
+                  d="M598.043,54.518L553.938,60.796C509.833,67.073,421.624,79.629,377.519,92.289C333.414,104.95,333.414,117.717,333.414,124.1L333.414,130.484"
                   id="dgm0-L_ui_api_0"
                   class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
                   style=""
                   data-edge="true"
                   data-et="edge"
                   data-id="L_ui_api_0"
-                  data-points="W3sieCI6NTA4Ljc0MTk1MzkwMjI1MTEsInkiOjU4LjV9LHsieCI6NDMxLjQ4MDQ2ODc1LCJ5Ijo5Mi4xODM1OTM3NX0seyJ4Ijo0MzEuNDgwNDY4NzUsInkiOjEzNC40ODM1OTI5ODcwNjA1NX1d"
+                  data-points="W3sieCI6NTk4LjA0Mjk2ODc1LCJ5Ijo1NC41MTgzMzczODk2OTI2NzV9LHsieCI6MzMzLjQxNDA2MjUsInkiOjkyLjE4MzU5Mzc1fSx7IngiOjMzMy40MTQwNjI1LCJ5IjoxMzQuNDgzNTkyOTg3MDYwNTV9XQ=="
                   data-look="classic"
                   marker-end="url(#dgm0_flowchart-v2-pointEnd)"
                 ></path>
                 <path
-                  d="M358.336,175.851L328.326,184.337C298.316,192.823,238.297,209.795,208.287,226.131C178.277,242.467,178.277,258.167,178.277,266.017L178.277,273.867"
-                  id="dgm0-L_api_management_0"
-                  class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
-                  style=""
-                  data-edge="true"
-                  data-et="edge"
-                  data-id="L_api_management_0"
-                  data-points="W3sieCI6MzU4LjMzNTkwNjEwNTU4MzYsInkiOjE3NS44NTA3ODA0ODcwNjA1NX0seyJ4IjoxNzguMjc3MzQzNzUsInkiOjIyNi43NjcxODUyMTExODE2NH0seyJ4IjoxNzguMjc3MzQzNzUsInkiOjI3Ny44NjcxODM2ODUzMDI3M31d"
-                  data-look="classic"
-                  marker-end="url(#dgm0_flowchart-v2-pointEnd)"
-                ></path>
-                <path
-                  d="M446.926,175.851L453.264,184.337C459.601,192.823,472.275,209.795,478.612,226.162C484.949,242.528,484.949,258.29,484.949,266.17L484.949,274.051"
-                  id="dgm0-L_api_turns_0"
-                  class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
-                  style=""
-                  data-edge="true"
-                  data-et="edge"
-                  data-id="L_api_turns_0"
-                  data-points="W3sieCI6NDQ2LjkyNjM2MTU4MzY0MzUsInkiOjE3NS44NTA3ODA0ODcwNjA1NX0seyJ4Ijo0ODQuOTQ5MjE4NzUsInkiOjIyNi43NjcxODUyMTExODE2NH0seyJ4Ijo0ODQuOTQ5MjE4NzUsInkiOjI3OC4wNTA3Nzc0MzUzMDI3M31d"
-                  data-look="classic"
-                  marker-end="url(#dgm0_flowchart-v2-pointEnd)"
-                ></path>
-                <path
-                  d="M386.246,315.874L342.711,323.514C299.176,331.155,212.105,346.437,168.57,360.476C125.035,374.515,125.035,387.311,125.035,393.709L125.035,400.108"
-                  id="dgm0-L_turns_discovery_0"
-                  class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
-                  style=""
-                  data-edge="true"
-                  data-et="edge"
-                  data-id="L_turns_discovery_0"
-                  data-points="W3sieCI6Mzg2LjI0NjA5Mzc1LCJ5IjozMTUuODczNzk4MDYxNjY4fSx7IngiOjEyNS4wMzUxNTYyNSwieSI6MzYxLjcxNzk2NDE3MjM2MzN9LHsieCI6MTI1LjAzNTE1NjI1LCJ5Ijo0MDQuMTA3ODA3MTU5NDIzOH1d"
-                  data-look="classic"
-                  marker-end="url(#dgm0_flowchart-v2-pointEnd)"
-                ></path>
-                <path
-                  d="M564.456,319.051L592.036,326.162C619.616,333.273,674.776,347.496,702.356,361.005C729.936,374.515,729.936,387.311,729.936,393.709L729.936,400.108"
-                  id="dgm0-L_turns_model_0"
-                  class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
-                  style=""
-                  data-edge="true"
-                  data-et="edge"
-                  data-id="L_turns_model_0"
-                  data-points="W3sieCI6NTY0LjQ1NjAwMDQ1MDg4NDksInkiOjMxOS4wNTA3Nzc0MzUzMDI3M30seyJ4Ijo3MjkuOTM1NTQ2ODc1LCJ5IjozNjEuNzE3OTY0MTcyMzYzM30seyJ4Ijo3MjkuOTM1NTQ2ODc1LCJ5Ijo0MDQuMTA3ODA3MTU5NDIzOH1d"
-                  data-look="classic"
-                  marker-end="url(#dgm0_flowchart-v2-pointEnd)"
-                ></path>
-                <path
-                  d="M125.035,445.475L125.035,452.54C125.035,459.605,125.035,473.735,125.035,485.747C125.035,497.759,125.035,507.654,125.035,512.601L125.035,517.548"
-                  id="dgm0-L_discovery_catalog_0"
-                  class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
-                  style=""
-                  data-edge="true"
-                  data-et="edge"
-                  data-id="L_discovery_catalog_0"
-                  data-points="W3sieCI6MTI1LjAzNTE1NjI1LCJ5Ijo0NDUuNDc0OTk0NjU5NDIzOH0seyJ4IjoxMjUuMDM1MTU2MjUsInkiOjQ4Ny44NjQ4Mzc2NDY0ODQ0fSx7IngiOjEyNS4wMzUxNTYyNSwieSI6NTIxLjU0ODQzMTM5NjQ4NDR9XQ=="
-                  data-look="classic"
-                  marker-end="url(#dgm0_flowchart-v2-pointEnd)"
-                ></path>
-                <path
-                  d="M220.131,319.234L234.459,326.315C248.787,333.396,277.442,347.557,302.334,359.952C327.226,372.347,348.355,382.975,358.919,388.29L369.483,393.604"
+                  d="M154.063,459.769L154.063,465.352C154.063,470.935,154.063,482.102,154.846,492.61C155.629,503.119,157.195,512.968,157.978,517.893L158.761,522.818"
                   id="dgm0-L_management_repo_0"
                   class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
                   style=""
                   data-edge="true"
                   data-et="edge"
                   data-id="L_management_repo_0"
-                  data-points="W3sieCI6MjIwLjEzMTA5MDE4NTY3Nzg2LCJ5IjozMTkuMjM0MzcxMTg1MzAyNzN9LHsieCI6MzA2LjA5NzY1NjI1LCJ5IjozNjEuNzE3OTY0MTcyMzYzM30seyJ4IjozNzMuMDU2ODA2Mzc2Njc4OSwieSI6Mzk1LjQwMTU1NzkyMjM2MzN9XQ=="
+                  data-points="W3sieCI6MTU0LjA2MjUsInkiOjQ1OS43Njg3NDU0MjIzNjMzfSx7IngiOjE1NC4wNjI1LCJ5Ijo0OTMuMjY4NzQ1NDIyMzYzM30seyJ4IjoxNTkuMzg5Mjc0MzEwMjYzODMsInkiOjUyNi43Njg3NDU0MjIzNjMzfV0="
                   data-look="classic"
                   marker-end="url(#dgm0_flowchart-v2-pointEnd)"
                 ></path>
                 <path
-                  d="M508.288,319.051L516.384,326.162C524.48,333.273,540.671,347.496,538.203,359.921C535.735,372.347,514.606,382.975,504.042,388.29L493.477,393.604"
+                  d="M336.626,459.585L325.279,465.199C313.933,470.813,291.24,482.041,271.188,492.894C251.137,503.748,233.727,514.227,225.022,519.466L216.317,524.706"
                   id="dgm0-L_turns_repo_0"
                   class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
                   style=""
                   data-edge="true"
                   data-et="edge"
                   data-id="L_turns_repo_0"
-                  data-points="W3sieCI6NTA4LjI4Nzg5MTIwNjQyMzYsInkiOjMxOS4wNTA3Nzc0MzUzMDI3M30seyJ4Ijo1NTYuODYzMjgxMjUsInkiOjM2MS43MTc5NjQxNzIzNjMzfSx7IngiOjQ4OS45MDQxMzExMjMzMjExLCJ5IjozOTUuNDAxNTU3OTIyMzYzM31d"
+                  data-points="W3sieCI6MzM2LjYyNTU2ODAxMjg1MDUsInkiOjQ1OS41ODUxNTE2NzIzNjMzfSx7IngiOjI2OC41NDY4NzUsInkiOjQ5My4yNjg3NDU0MjIzNjMzfSx7IngiOjIxMi44OTA0MDY1NDI2MDI3NiwieSI6NTI2Ljc2ODc0NTQyMjM2MzN9XQ=="
                   data-look="classic"
                   marker-end="url(#dgm0_flowchart-v2-pointEnd)"
                 ></path>
                 <path
-                  d="M431.48,454.181L431.48,459.795C431.48,465.409,431.48,476.637,431.48,487.198C431.48,497.759,431.48,507.654,431.48,512.601L431.48,517.548"
+                  d="M281.604,175.851L260.347,184.337C239.09,192.823,196.576,209.795,175.319,230.245C154.063,250.695,154.063,274.623,154.063,297.115C154.063,319.607,154.063,340.662,154.063,356.804C154.063,372.946,154.063,384.174,154.063,392.954C154.063,401.735,154.063,408.068,154.063,411.235L154.063,414.402"
+                  id="dgm0-L_api_management_0"
+                  class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                  style=""
+                  data-edge="true"
+                  data-et="edge"
+                  data-id="L_api_management_0"
+                  data-points="W3sieCI6MjgxLjYwMzUxODY5Nzg0NDI3LCJ5IjoxNzUuODUwNzgwNDg3MDYwNTV9LHsieCI6MTU0LjA2MjUsInkiOjIyNi43NjcxODUyMTExODE2NH0seyJ4IjoxNTQuMDYyNSwieSI6Mjk4LjU1MDc3NzQzNTMwMjczfSx7IngiOjE1NC4wNjI1LCJ5IjozNjEuNzE3OTY0MTcyMzYzM30seyJ4IjoxNTQuMDYyNSwieSI6Mzk1LjQwMTU1NzkyMjM2MzN9LHsieCI6MTU0LjA2MjUsInkiOjQxOC40MDE1NTc5MjIzNjMzfV0="
+                  data-look="classic"
+                  marker-end="url(#dgm0_flowchart-v2-pointEnd)"
+                ></path>
+                <path
+                  d="M329.193,175.851L327.461,184.337C325.729,192.823,322.265,209.795,320.533,230.245C318.801,250.695,318.801,274.623,318.801,297.115C318.801,319.607,318.801,340.662,318.801,356.804C318.801,372.946,318.801,384.174,323.506,393.256C328.211,402.338,337.62,409.275,342.325,412.743L347.03,416.212"
+                  id="dgm0-L_api_turns_0"
+                  class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                  style=""
+                  data-edge="true"
+                  data-et="edge"
+                  data-id="L_api_turns_0"
+                  data-points="W3sieCI6MzI5LjE5MjYyMTQ1MDEyNzEsInkiOjE3NS44NTA3ODA0ODcwNjA1NX0seyJ4IjozMTguODAwNzgxMjUsInkiOjIyNi43NjcxODUyMTExODE2NH0seyJ4IjozMTguODAwNzgxMjUsInkiOjI5OC41NTA3Nzc0MzUzMDI3M30seyJ4IjozMTguODAwNzgxMjUsInkiOjM2MS43MTc5NjQxNzIzNjMzfSx7IngiOjMxOC44MDA3ODEyNSwieSI6Mzk1LjQwMTU1NzkyMjM2MzN9LHsieCI6MzUwLjI0OTg2NjIxNzEzNzYsInkiOjQxOC41ODUxNTE2NzIzNjMzfV0="
+                  data-look="classic"
+                  marker-end="url(#dgm0_flowchart-v2-pointEnd)"
+                ></path>
+                <path
+                  d="M431.544,175.851L471.804,184.337C512.065,192.823,592.586,209.795,632.847,226.147C673.107,242.498,673.107,258.23,673.107,266.095L673.107,273.961"
+                  id="dgm0-L_api_composition_0"
+                  class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                  style=""
+                  data-edge="true"
+                  data-et="edge"
+                  data-id="L_api_composition_0"
+                  data-points="W3sieCI6NDMxLjU0MzY2NTc3NjgwMzcsInkiOjE3NS44NTA3ODA0ODcwNjA1NX0seyJ4Ijo2NzMuMTA3NDIxODc1LCJ5IjoyMjYuNzY3MTg1MjExMTgxNjR9LHsieCI6NjczLjEwNzQyMTg3NSwieSI6Mjc3Ljk2MDkzMzY4NTMwMjczfV0="
+                  data-look="classic"
+                  marker-end="url(#dgm0_flowchart-v2-pointEnd)"
+                ></path>
+                <path
+                  d="M604.084,319.141L580.295,326.237C556.506,333.333,508.929,347.526,485.14,360.236C461.352,372.946,461.352,384.174,454.574,393.342C447.797,402.51,434.243,409.619,427.466,413.173L420.689,416.727"
+                  id="dgm0-L_composition_turns_0"
+                  class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                  style=""
+                  data-edge="true"
+                  data-et="edge"
+                  data-id="L_composition_turns_0"
+                  data-points="W3sieCI6NjA0LjA4MzkyNTkyODgwMjIsInkiOjMxOS4xNDA2MjExODUzMDI3M30seyJ4Ijo0NjEuMzUxNTYyNSwieSI6MzYxLjcxNzk2NDE3MjM2MzN9LHsieCI6NDYxLjM1MTU2MjUsInkiOjM5NS40MDE1NTc5MjIzNjMzfSx7IngiOjQxNy4xNDY2MjkxNjA4OTE1LCJ5Ijo0MTguNTg1MTUxNjcyMzYzM31d"
+                  data-look="classic"
+                  marker-end="url(#dgm0_flowchart-v2-pointEnd)"
+                ></path>
+                <path
+                  d="M739.638,319.141L762.567,326.237C785.497,333.333,831.356,347.526,854.285,360.236C877.215,372.946,877.215,384.174,877.215,392.985C877.215,401.796,877.215,408.191,877.215,411.388L877.215,414.585"
+                  id="dgm0-L_composition_sdk_0"
+                  class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                  style=""
+                  data-edge="true"
+                  data-et="edge"
+                  data-id="L_composition_sdk_0"
+                  data-points="W3sieCI6NzM5LjYzNzg0OTE2OTcxMzMsInkiOjMxOS4xNDA2MjExODUzMDI3M30seyJ4Ijo4NzcuMjE0ODQzNzUsInkiOjM2MS43MTc5NjQxNzIzNjMzfSx7IngiOjg3Ny4yMTQ4NDM3NSwieSI6Mzk1LjQwMTU1NzkyMjM2MzN9LHsieCI6ODc3LjIxNDg0Mzc1LCJ5Ijo0MTguNTg1MTUxNjcyMzYzM31d"
+                  data-look="classic"
+                  marker-end="url(#dgm0_flowchart-v2-pointEnd)"
+                ></path>
+                <path
+                  d="M877.215,459.585L877.215,465.199C877.215,470.813,877.215,482.041,877.215,494.038C877.215,506.035,877.215,518.802,877.215,525.185L877.215,531.569"
+                  id="dgm0-L_sdk_ai_0"
+                  class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                  style=""
+                  data-edge="true"
+                  data-et="edge"
+                  data-id="L_sdk_ai_0"
+                  data-points="W3sieCI6ODc3LjIxNDg0Mzc1LCJ5Ijo0NTkuNTg1MTUxNjcyMzYzM30seyJ4Ijo4NzcuMjE0ODQzNzUsInkiOjQ5My4yNjg3NDU0MjIzNjMzfSx7IngiOjg3Ny4yMTQ4NDM3NSwieSI6NTM1LjU2ODc0NDY1OTQyMzh9XQ=="
+                  data-look="classic"
+                  marker-end="url(#dgm0_flowchart-v2-pointEnd)"
+                ></path>
+                <path
+                  d="M398.202,459.585L403.719,465.199C409.235,470.813,420.268,482.041,452.837,494.525C485.405,507.009,539.509,520.75,566.562,527.62L593.614,534.49"
+                  id="dgm0-L_turns_discovery_0"
+                  class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                  style=""
+                  data-edge="true"
+                  data-et="edge"
+                  data-id="L_turns_discovery_0"
+                  data-points="W3sieCI6Mzk4LjIwMjQxODk5NjkxOCwieSI6NDU5LjU4NTE1MTY3MjM2MzN9LHsieCI6NDMxLjMwMDc4MTI1LCJ5Ijo0OTMuMjY4NzQ1NDIyMzYzM30seyJ4Ijo1OTcuNDkwNjA5NDgzNDY2NiwieSI6NTM1LjQ3NDk5NDY1OTQyMzh9XQ=="
+                  data-look="classic"
+                  marker-end="url(#dgm0_flowchart-v2-pointEnd)"
+                ></path>
+                <path
+                  d="M678.934,576.842L678.934,582.127C678.934,587.411,678.934,597.98,678.934,608.878C678.934,619.776,678.934,631.004,678.934,641.565C678.934,652.127,678.934,662.021,678.934,666.968L678.934,671.916"
+                  id="dgm0-L_discovery_catalog_0"
+                  class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
+                  style=""
+                  data-edge="true"
+                  data-et="edge"
+                  data-id="L_discovery_catalog_0"
+                  data-points="W3sieCI6Njc4LjkzMzU5Mzc1LCJ5Ijo1NzYuODQyMTgyMTU5NDIzOH0seyJ4Ijo2NzguOTMzNTkzNzUsInkiOjYwOC41NDg0MzEzOTY0ODQ0fSx7IngiOjY3OC45MzM1OTM3NSwieSI6NjQyLjIzMjAyNTE0NjQ4NDR9LHsieCI6Njc4LjkzMzU5Mzc1LCJ5Ijo2NzUuOTE1NjE4ODk2NDg0NH1d"
+                  data-look="classic"
+                  marker-end="url(#dgm0_flowchart-v2-pointEnd)"
+                ></path>
+                <path
+                  d="M164.063,585.548L164.063,589.382C164.063,593.215,164.063,600.882,164.063,610.329C164.063,619.776,164.063,631.004,164.063,641.565C164.063,652.127,164.063,662.021,164.063,666.968L164.063,671.916"
                   id="dgm0-L_repo_db_0"
                   class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
                   style=""
                   data-edge="true"
                   data-et="edge"
                   data-id="L_repo_db_0"
-                  data-points="W3sieCI6NDMxLjQ4MDQ2ODc1LCJ5Ijo0NTQuMTgxMjQzODk2NDg0NH0seyJ4Ijo0MzEuNDgwNDY4NzUsInkiOjQ4Ny44NjQ4Mzc2NDY0ODQ0fSx7IngiOjQzMS40ODA0Njg3NSwieSI6NTIxLjU0ODQzMTM5NjQ4NDR9XQ=="
+                  data-points="W3sieCI6MTY0LjA2MjUsInkiOjU4NS41NDg0MzEzOTY0ODQ0fSx7IngiOjE2NC4wNjI1LCJ5Ijo2MDguNTQ4NDMxMzk2NDg0NH0seyJ4IjoxNjQuMDYyNSwieSI6NjQyLjIzMjAyNTE0NjQ4NDR9LHsieCI6MTY0LjA2MjUsInkiOjY3NS45MTU2MTg4OTY0ODQ0fV0="
                   data-look="classic"
                   marker-end="url(#dgm0_flowchart-v2-pointEnd)"
                 ></path>
                 <path
-                  d="M125.035,562.916L125.035,566.749C125.035,570.582,125.035,578.249,125.035,585.249C125.035,592.249,125.035,598.582,125.035,601.749L125.035,604.916"
+                  d="M678.934,717.283L678.934,721.116C678.934,724.949,678.934,732.616,678.934,739.616C678.934,746.616,678.934,752.949,678.934,756.116L678.934,759.283"
                   id="dgm0-L_catalog_dummy_0"
                   class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
                   style=""
                   data-edge="true"
                   data-et="edge"
                   data-id="L_catalog_dummy_0"
-                  data-points="W3sieCI6MTI1LjAzNTE1NjI1LCJ5Ijo1NjIuOTE1NjE4ODk2NDg0NH0seyJ4IjoxMjUuMDM1MTU2MjUsInkiOjU4NS45MTU2MTg4OTY0ODQ0fSx7IngiOjEyNS4wMzUxNTYyNSwieSI6NjA4LjkxNTYxODg5NjQ4NDR9XQ=="
+                  data-points="W3sieCI6Njc4LjkzMzU5Mzc1LCJ5Ijo3MTcuMjgyODA2Mzk2NDg0NH0seyJ4Ijo2NzguOTMzNTkzNzUsInkiOjc0MC4yODI4MDYzOTY0ODQ0fSx7IngiOjY3OC45MzM1OTM3NSwieSI6NzYzLjI4MjgwNjM5NjQ4NDR9XQ=="
                   data-look="classic"
                   marker-end="url(#dgm0_flowchart-v2-pointEnd)"
                 ></path>
                 <path
-                  d="M729.936,445.475L729.936,452.54C729.936,459.605,729.936,473.735,729.936,485.763C729.936,497.791,729.936,507.716,729.936,512.679L729.936,517.642"
-                  id="dgm0-L_model_ai_0"
-                  class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
-                  style=""
-                  data-edge="true"
-                  data-et="edge"
-                  data-id="L_model_ai_0"
-                  data-points="W3sieCI6NzI5LjkzNTU0Njg3NSwieSI6NDQ1LjQ3NDk5NDY1OTQyMzh9LHsieCI6NzI5LjkzNTU0Njg3NSwieSI6NDg3Ljg2NDgzNzY0NjQ4NDR9LHsieCI6NzI5LjkzNTU0Njg3NSwieSI6NTIxLjY0MjE4MTM5NjQ4NDR9XQ=="
-                  data-look="classic"
-                  marker-end="url(#dgm0_flowchart-v2-pointEnd)"
-                ></path>
-                <path
-                  d="M623.015,58.5L641.432,64.114C659.848,69.728,696.682,80.956,715.099,91.517C733.516,102.078,733.516,111.973,733.516,116.92L733.516,121.867"
+                  d="M788.395,58.5L808.741,64.114C829.087,69.728,869.78,80.956,890.126,91.517C910.473,102.078,910.473,111.973,910.473,116.92L910.473,121.867"
                   id="dgm0-L_ui_cards_0"
                   class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
                   style=""
                   data-edge="true"
                   data-et="edge"
                   data-id="L_ui_cards_0"
-                  data-points="W3sieCI6NjIzLjAxNDkzMzQ5OTk3MjksInkiOjU4LjV9LHsieCI6NzMzLjUxNTYyNSwieSI6OTIuMTgzNTkzNzV9LHsieCI6NzMzLjUxNTYyNSwieSI6MTI1Ljg2NzE4NzV9XQ=="
+                  data-points="W3sieCI6Nzg4LjM5NDgyMzAwMDc3NSwieSI6NTguNX0seyJ4Ijo5MTAuNDcyNjU2MjUsInkiOjkyLjE4MzU5Mzc1fSx7IngiOjkxMC40NzI2NTYyNSwieSI6MTI1Ljg2NzE4NzV9XQ=="
                   data-look="classic"
                   marker-end="url(#dgm0_flowchart-v2-pointEnd)"
                 ></path>
                 <path
-                  d="M733.516,184.467L733.516,191.517C733.516,198.567,733.516,212.667,733.516,226.101C733.516,239.534,733.516,252.301,733.516,258.684L733.516,265.067"
+                  d="M910.473,184.467L910.473,191.517C910.473,198.567,910.473,212.667,910.473,226.101C910.473,239.534,910.473,252.301,910.473,258.684L910.473,265.067"
                   id="dgm0-L_cards_strategy_0"
                   class="edge-thickness-normal edge-pattern-dotted edge-thickness-normal edge-pattern-solid flowchart-link"
                   style=""
                   data-edge="true"
                   data-et="edge"
                   data-id="L_cards_strategy_0"
-                  data-points="W3sieCI6NzMzLjUxNTYyNSwieSI6MTg0LjQ2NzE4NTk3NDEyMTF9LHsieCI6NzMzLjUxNTYyNSwieSI6MjI2Ljc2NzE4NTIxMTE4MTY0fSx7IngiOjczMy41MTU2MjUsInkiOjI2OS4wNjcxODQ0NDgyNDIyfV0="
+                  data-points="W3sieCI6OTEwLjQ3MjY1NjI1LCJ5IjoxODQuNDY3MTg1OTc0MTIxMX0seyJ4Ijo5MTAuNDcyNjU2MjUsInkiOjIyNi43NjcxODUyMTExODE2NH0seyJ4Ijo5MTAuNDcyNjU2MjUsInkiOjI2OS4wNjcxODQ0NDgyNDIyfV0="
                   data-look="classic"
                   marker-end="url(#dgm0_flowchart-v2-pointEnd)"
                 ></path>
@@ -910,7 +990,35 @@
                   </g>
                 </g>
                 <g><rect class="background" style="stroke: none"></rect></g>
-                <g class="edgeLabel" transform="translate(178.27734375, 226.76718521118164)">
+                <g class="edgeLabel">
+                  <g class="label" data-id="L_management_repo_0" transform="translate(0, 0)">
+                    <text y="-10.1" text-anchor="middle">
+                      <tspan
+                        class="text-outer-tspan row"
+                        x="0"
+                        y="-0.1em"
+                        dy="1.1em"
+                        text-anchor="middle"
+                      ></tspan>
+                    </text>
+                  </g>
+                </g>
+                <g><rect class="background" style="stroke: none"></rect></g>
+                <g class="edgeLabel">
+                  <g class="label" data-id="L_turns_repo_0" transform="translate(0, 0)">
+                    <text y="-10.1" text-anchor="middle">
+                      <tspan
+                        class="text-outer-tspan row"
+                        x="0"
+                        y="-0.1em"
+                        dy="1.1em"
+                        text-anchor="middle"
+                      ></tspan>
+                    </text>
+                  </g>
+                </g>
+                <g><rect class="background" style="stroke: none"></rect></g>
+                <g class="edgeLabel" transform="translate(154.0625, 298.55077743530273)">
                   <g
                     class="label"
                     data-id="L_api_management_0"
@@ -947,7 +1055,7 @@
                     </g>
                   </g>
                 </g>
-                <g class="edgeLabel" transform="translate(484.94921875, 226.76718521118164)">
+                <g class="edgeLabel" transform="translate(318.80078125, 298.55077743530273)">
                   <g class="label" data-id="L_api_turns_0" transform="translate(0, -10.68359375)">
                     <g>
                       <rect
@@ -977,7 +1085,115 @@
                     </g>
                   </g>
                 </g>
-                <g class="edgeLabel" transform="translate(125.03515625, 361.7179641723633)">
+                <g class="edgeLabel">
+                  <g class="label" data-id="L_api_composition_0" transform="translate(0, 0)">
+                    <text y="-10.1" text-anchor="middle">
+                      <tspan
+                        class="text-outer-tspan row"
+                        x="0"
+                        y="-0.1em"
+                        dy="1.1em"
+                        text-anchor="middle"
+                      ></tspan>
+                    </text>
+                  </g>
+                </g>
+                <g><rect class="background" style="stroke: none"></rect></g>
+                <g class="edgeLabel" transform="translate(461.3515625, 361.7179641723633)">
+                  <g
+                    class="label"
+                    data-id="L_composition_turns_0"
+                    transform="translate(0, -10.68359375)"
+                  >
+                    <g>
+                      <rect
+                        class="background"
+                        style=""
+                        x="-98.515625"
+                        y="0"
+                        width="197.03125"
+                        height="21.3671875"
+                      ></rect>
+                      <text y="-10.1" text-anchor="middle" style="">
+                        <tspan
+                          class="text-outer-tspan row"
+                          x="0"
+                          y="-0.1em"
+                          dy="1.1em"
+                          text-anchor="middle"
+                        >
+                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
+                            inject
+                          </tspan>
+                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
+                            SDK
+                          </tspan>
+                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
+                            language
+                          </tspan>
+                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
+                            model
+                          </tspan>
+                        </tspan>
+                      </text>
+                    </g>
+                  </g>
+                </g>
+                <g class="edgeLabel" transform="translate(877.21484375, 361.7179641723633)">
+                  <g
+                    class="label"
+                    data-id="L_composition_sdk_0"
+                    transform="translate(0, -10.68359375)"
+                  >
+                    <g>
+                      <rect
+                        class="background"
+                        style=""
+                        x="-89.1640625"
+                        y="0"
+                        width="178.328125"
+                        height="21.3671875"
+                      ></rect>
+                      <text y="-10.1" text-anchor="middle" style="">
+                        <tspan
+                          class="text-outer-tspan row"
+                          x="0"
+                          y="-0.1em"
+                          dy="1.1em"
+                          text-anchor="middle"
+                        >
+                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
+                            select
+                          </tspan>
+                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
+                            OpenAI
+                          </tspan>
+                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
+                            by
+                          </tspan>
+                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
+                            default
+                          </tspan>
+                        </tspan>
+                      </text>
+                    </g>
+                  </g>
+                </g>
+                <g class="edgeLabel">
+                  <g class="label" data-id="L_sdk_ai_0" transform="translate(0, 0)">
+                    <text y="-10.1" text-anchor="middle">
+                      <tspan
+                        class="text-outer-tspan row"
+                        x="0"
+                        y="-0.1em"
+                        dy="1.1em"
+                        text-anchor="middle"
+                      ></tspan>
+                    </text>
+                  </g>
+                </g>
+                <g><rect class="background" style="stroke: none"></rect></g>
+                <g class="edgeLabel" transform="translate(491.5103, 518.0598)">
                   <g class="label" data-id="L_turns_discovery_0" transform="translate(0, -10.5)">
                     <g>
                       <rect
@@ -1010,40 +1226,7 @@
                     </g>
                   </g>
                 </g>
-                <g class="edgeLabel" transform="translate(729.935546875, 361.7179641723633)">
-                  <g class="label" data-id="L_turns_model_0" transform="translate(0, -10.68359375)">
-                    <g>
-                      <rect
-                        class="background"
-                        style=""
-                        x="-72.25"
-                        y="0"
-                        width="144.5"
-                        height="21.3671875"
-                      ></rect>
-                      <text y="-10.1" text-anchor="middle" style="">
-                        <tspan
-                          class="text-outer-tspan row"
-                          x="0"
-                          y="-0.1em"
-                          dy="1.1em"
-                          text-anchor="middle"
-                        >
-                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
-                            classify
-                          </tspan>
-                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
-                            or
-                          </tspan>
-                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
-                            compose
-                          </tspan>
-                        </tspan>
-                      </text>
-                    </g>
-                  </g>
-                </g>
-                <g class="edgeLabel" transform="translate(125.03515625, 487.8648376464844)">
+                <g class="edgeLabel" transform="translate(678.93359375, 642.2320251464844)">
                   <g
                     class="label"
                     data-id="L_discovery_catalog_0"
@@ -1081,34 +1264,6 @@
                   </g>
                 </g>
                 <g class="edgeLabel">
-                  <g class="label" data-id="L_management_repo_0" transform="translate(0, 0)">
-                    <text y="-10.1" text-anchor="middle">
-                      <tspan
-                        class="text-outer-tspan row"
-                        x="0"
-                        y="-0.1em"
-                        dy="1.1em"
-                        text-anchor="middle"
-                      ></tspan>
-                    </text>
-                  </g>
-                </g>
-                <g><rect class="background" style="stroke: none"></rect></g>
-                <g class="edgeLabel">
-                  <g class="label" data-id="L_turns_repo_0" transform="translate(0, 0)">
-                    <text y="-10.1" text-anchor="middle">
-                      <tspan
-                        class="text-outer-tspan row"
-                        x="0"
-                        y="-0.1em"
-                        dy="1.1em"
-                        text-anchor="middle"
-                      ></tspan>
-                    </text>
-                  </g>
-                </g>
-                <g><rect class="background" style="stroke: none"></rect></g>
-                <g class="edgeLabel">
                   <g class="label" data-id="L_repo_db_0" transform="translate(0, 0)">
                     <text y="-10.1" text-anchor="middle">
                       <tspan
@@ -1136,21 +1291,7 @@
                   </g>
                 </g>
                 <g><rect class="background" style="stroke: none"></rect></g>
-                <g class="edgeLabel">
-                  <g class="label" data-id="L_model_ai_0" transform="translate(0, 0)">
-                    <text y="-10.1" text-anchor="middle">
-                      <tspan
-                        class="text-outer-tspan row"
-                        x="0"
-                        y="-0.1em"
-                        dy="1.1em"
-                        text-anchor="middle"
-                      ></tspan>
-                    </text>
-                  </g>
-                </g>
-                <g><rect class="background" style="stroke: none"></rect></g>
-                <g class="edgeLabel" transform="translate(733.515625, 92.18359375)">
+                <g class="edgeLabel" transform="translate(910.47265625, 92.18359375)">
                   <g class="label" data-id="L_ui_cards_0" transform="translate(0, -10.68359375)">
                     <g>
                       <rect
@@ -1183,7 +1324,7 @@
                     </g>
                   </g>
                 </g>
-                <g class="edgeLabel" transform="translate(733.515625, 226.76718521118164)">
+                <g class="edgeLabel" transform="translate(910.47265625, 226.76718521118164)">
                   <g
                     class="label"
                     data-id="L_cards_strategy_0"
@@ -1240,7 +1381,7 @@
                   class="node default"
                   id="dgm0-flowchart-ui-0"
                   data-look="classic"
-                  transform="translate(555.763671875, 38)"
+                  transform="translate(714.09765625, 38)"
                 >
                   <rect
                     class="basic label-container"
@@ -1277,7 +1418,7 @@
                   class="node default"
                   id="dgm0-flowchart-api-1"
                   data-look="classic"
-                  transform="translate(431.48046875, 155.16718673706055)"
+                  transform="translate(333.4140625, 155.16718673706055)"
                 >
                   <rect
                     class="basic label-container"
@@ -1309,9 +1450,9 @@
                 </g>
                 <g
                   class="node default service"
-                  id="dgm0-flowchart-management-3"
+                  id="dgm0-flowchart-management-2"
                   data-look="classic"
-                  transform="translate(178.27734375, 298.55077743530273)"
+                  transform="translate(154.0625, 439.0851516723633)"
                 >
                   <rect
                     class="basic label-container"
@@ -1344,16 +1485,16 @@
                 </g>
                 <g
                   class="node default service"
-                  id="dgm0-flowchart-turns-5"
+                  id="dgm0-flowchart-turns-3"
                   data-look="classic"
-                  transform="translate(484.94921875, 298.55077743530273)"
+                  transform="translate(378.05859375, 439.0851516723633)"
                 >
                   <rect
                     class="basic label-container"
                     style="fill: #e3efec !important; stroke: #427467 !important"
-                    x="-98.703125"
+                    x="-56.90625"
                     y="-20.5"
-                    width="197.40625"
+                    width="113.8125"
                     height="41"
                   ></rect>
                   <g class="label" style="color: #173f37 !important" transform="translate(0, -8.5)">
@@ -1363,48 +1504,10 @@
                       <text y="-10.1" style="fill: #173f37 !important">
                         <tspan class="text-outer-tspan row" x="0" y="-0.1em" dy="1.1em">
                           <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
-                            Conversation
+                            Chat
                           </tspan>
                           <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
-                            service
-                          </tspan>
-                        </tspan>
-                      </text>
-                    </g>
-                  </g>
-                </g>
-                <g
-                  class="node default service"
-                  id="dgm0-flowchart-discovery-7"
-                  data-look="classic"
-                  transform="translate(125.03515625, 424.7914009094238)"
-                >
-                  <rect
-                    class="basic label-container"
-                    style="fill: #e3efec !important; stroke: #427467 !important"
-                    x="-115.1484375"
-                    y="-20.68359375"
-                    width="230.296875"
-                    height="41.3671875"
-                  ></rect>
-                  <g
-                    class="label"
-                    style="color: #173f37 !important"
-                    transform="translate(0, -8.68359375)"
-                  >
-                    <rect></rect>
-                    <g>
-                      <rect class="background" style="stroke: none"></rect>
-                      <text y="-10.1" style="fill: #173f37 !important">
-                        <tspan class="text-outer-tspan row" x="0" y="-0.1em" dy="1.1em">
-                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
-                            Product
-                          </tspan>
-                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
-                            discovery
-                          </tspan>
-                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
-                            service
+                            turn
                           </tspan>
                         </tspan>
                       </text>
@@ -1413,94 +1516,9 @@
                 </g>
                 <g
                   class="node default port"
-                  id="dgm0-flowchart-model-9"
+                  id="dgm0-flowchart-repo-4"
                   data-look="classic"
-                  transform="translate(729.935546875, 424.7914009094238)"
-                >
-                  <rect
-                    class="basic label-container"
-                    style="fill: #f9f2df !important; stroke: #a0874c !important"
-                    x="-113.40234375"
-                    y="-20.68359375"
-                    width="226.8046875"
-                    height="41.3671875"
-                  ></rect>
-                  <g
-                    class="label"
-                    style="color: #4c3b19 !important"
-                    transform="translate(0, -8.68359375)"
-                  >
-                    <rect></rect>
-                    <g>
-                      <rect class="background" style="stroke: none"></rect>
-                      <text y="-10.1" style="fill: #4c3b19 !important">
-                        <tspan class="text-outer-tspan row" x="0" y="-0.1em" dy="1.1em">
-                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
-                            AI
-                          </tspan>
-                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
-                            ports
-                          </tspan>
-                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
-                            ·
-                          </tspan>
-                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
-                            intent
-                          </tspan>
-                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
-                            and
-                          </tspan>
-                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
-                            reply
-                          </tspan>
-                        </tspan>
-                      </text>
-                    </g>
-                  </g>
-                </g>
-                <g
-                  class="node default port"
-                  id="dgm0-flowchart-catalog-11"
-                  data-look="classic"
-                  transform="translate(125.03515625, 542.2320251464844)"
-                >
-                  <rect
-                    class="basic label-container"
-                    style="fill: #f9f2df !important; stroke: #a0874c !important"
-                    x="-95.6015625"
-                    y="-20.68359375"
-                    width="191.203125"
-                    height="41.3671875"
-                  ></rect>
-                  <g
-                    class="label"
-                    style="color: #4c3b19 !important"
-                    transform="translate(0, -8.68359375)"
-                  >
-                    <rect></rect>
-                    <g>
-                      <rect class="background" style="stroke: none"></rect>
-                      <text y="-10.1" style="fill: #4c3b19 !important">
-                        <tspan class="text-outer-tspan row" x="0" y="-0.1em" dy="1.1em">
-                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
-                            Product
-                          </tspan>
-                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
-                            catalog
-                          </tspan>
-                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
-                            port
-                          </tspan>
-                        </tspan>
-                      </text>
-                    </g>
-                  </g>
-                </g>
-                <g
-                  class="node default port"
-                  id="dgm0-flowchart-repo-13"
-                  data-look="classic"
-                  transform="translate(431.48046875, 424.7914009094238)"
+                  transform="translate(164.0625, 556.1585884094238)"
                 >
                   <rect
                     class="basic label-container"
@@ -1537,10 +1555,186 @@
                   </g>
                 </g>
                 <g
-                  class="node default adapter"
-                  id="dgm0-flowchart-db-17"
+                  class="node default"
+                  id="dgm0-flowchart-composition-14"
                   data-look="classic"
-                  transform="translate(431.48046875, 542.2320251464844)"
+                  transform="translate(673.107421875, 298.55077743530273)"
+                >
+                  <rect
+                    class="basic label-container"
+                    style=""
+                    x="-100.7890625"
+                    y="-20.58984375"
+                    width="201.578125"
+                    height="41.1796875"
+                  ></rect>
+                  <g class="label" style="" transform="translate(0, -8.58984375)">
+                    <rect></rect>
+                    <g>
+                      <rect class="background" style="stroke: none"></rect>
+                      <text y="-10.1" style="">
+                        <tspan class="text-outer-tspan row" x="0" y="-0.1em" dy="1.1em">
+                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
+                            Web
+                          </tspan>
+                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
+                            app
+                          </tspan>
+                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
+                            composition
+                          </tspan>
+                        </tspan>
+                      </text>
+                    </g>
+                  </g>
+                </g>
+                <g
+                  class="node default external"
+                  id="dgm0-flowchart-sdk-18"
+                  data-look="classic"
+                  transform="translate(877.21484375, 439.0851516723633)"
+                >
+                  <rect
+                    class="basic label-container"
+                    style="fill: #f0ecf7 !important; stroke: #846c9e !important"
+                    x="-74.25"
+                    y="-20.5"
+                    width="148.5"
+                    height="41"
+                  ></rect>
+                  <g class="label" style="color: #3e2c52 !important" transform="translate(0, -8.5)">
+                    <rect></rect>
+                    <g>
+                      <rect class="background" style="stroke: none"></rect>
+                      <text y="-10.1" style="fill: #3e2c52 !important">
+                        <tspan class="text-outer-tspan row" x="0" y="-0.1em" dy="1.1em">
+                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
+                            Vercel
+                          </tspan>
+                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
+                            AI
+                          </tspan>
+                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
+                            SDK
+                          </tspan>
+                        </tspan>
+                      </text>
+                    </g>
+                  </g>
+                </g>
+                <g
+                  class="node default external"
+                  id="dgm0-flowchart-ai-20"
+                  data-look="classic"
+                  transform="translate(877.21484375, 556.1585884094238)"
+                >
+                  <rect
+                    class="basic label-container"
+                    style="fill: #f0ecf7 !important; stroke: #846c9e !important"
+                    x="-51.1328125"
+                    y="-20.58984375"
+                    width="102.265625"
+                    height="41.1796875"
+                  ></rect>
+                  <g
+                    class="label"
+                    style="color: #3e2c52 !important"
+                    transform="translate(0, -8.58984375)"
+                  >
+                    <rect></rect>
+                    <g>
+                      <rect class="background" style="stroke: none"></rect>
+                      <text y="-10.1" style="fill: #3e2c52 !important">
+                        <tspan class="text-outer-tspan row" x="0" y="-0.1em" dy="1.1em">
+                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
+                            OpenAI
+                          </tspan>
+                        </tspan>
+                      </text>
+                    </g>
+                  </g>
+                </g>
+                <g
+                  class="node default service"
+                  id="dgm0-flowchart-discovery-22"
+                  data-look="classic"
+                  transform="translate(678.93359375, 556.1585884094238)"
+                >
+                  <rect
+                    class="basic label-container"
+                    style="fill: #e3efec !important; stroke: #427467 !important"
+                    x="-115.1484375"
+                    y="-20.68359375"
+                    width="230.296875"
+                    height="41.3671875"
+                  ></rect>
+                  <g
+                    class="label"
+                    style="color: #173f37 !important"
+                    transform="translate(0, -8.68359375)"
+                  >
+                    <rect></rect>
+                    <g>
+                      <rect class="background" style="stroke: none"></rect>
+                      <text y="-10.1" style="fill: #173f37 !important">
+                        <tspan class="text-outer-tspan row" x="0" y="-0.1em" dy="1.1em">
+                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
+                            Product
+                          </tspan>
+                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
+                            discovery
+                          </tspan>
+                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
+                            service
+                          </tspan>
+                        </tspan>
+                      </text>
+                    </g>
+                  </g>
+                </g>
+                <g
+                  class="node default port"
+                  id="dgm0-flowchart-catalog-24"
+                  data-look="classic"
+                  transform="translate(678.93359375, 696.5992126464844)"
+                >
+                  <rect
+                    class="basic label-container"
+                    style="fill: #f9f2df !important; stroke: #a0874c !important"
+                    x="-95.6015625"
+                    y="-20.68359375"
+                    width="191.203125"
+                    height="41.3671875"
+                  ></rect>
+                  <g
+                    class="label"
+                    style="color: #4c3b19 !important"
+                    transform="translate(0, -8.68359375)"
+                  >
+                    <rect></rect>
+                    <g>
+                      <rect class="background" style="stroke: none"></rect>
+                      <text y="-10.1" style="fill: #4c3b19 !important">
+                        <tspan class="text-outer-tspan row" x="0" y="-0.1em" dy="1.1em">
+                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
+                            Product
+                          </tspan>
+                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
+                            catalog
+                          </tspan>
+                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
+                            port
+                          </tspan>
+                        </tspan>
+                      </text>
+                    </g>
+                  </g>
+                </g>
+                <g
+                  class="node default adapter"
+                  id="dgm0-flowchart-db-26"
+                  data-look="classic"
+                  transform="translate(164.0625, 696.5992126464844)"
                 >
                   <rect
                     class="basic label-container"
@@ -1573,9 +1767,9 @@
                 </g>
                 <g
                   class="node default adapter"
-                  id="dgm0-flowchart-dummy-19"
+                  id="dgm0-flowchart-dummy-28"
                   data-look="classic"
-                  transform="translate(125.03515625, 629.5992126464844)"
+                  transform="translate(678.93359375, 783.9664001464844)"
                 >
                   <rect
                     class="basic label-container"
@@ -1610,45 +1804,10 @@
                   </g>
                 </g>
                 <g
-                  class="node default adapter"
-                  id="dgm0-flowchart-ai-21"
-                  data-look="classic"
-                  transform="translate(729.935546875, 542.2320251464844)"
-                >
-                  <rect
-                    class="basic label-container"
-                    style="fill: #eaf0f8 !important; stroke: #7288a3 !important"
-                    x="-80.59765625"
-                    y="-20.58984375"
-                    width="161.1953125"
-                    height="41.1796875"
-                  ></rect>
-                  <g
-                    class="label"
-                    style="color: #24354e !important"
-                    transform="translate(0, -8.58984375)"
-                  >
-                    <rect></rect>
-                    <g>
-                      <rect class="background" style="stroke: none"></rect>
-                      <text y="-10.1" style="fill: #24354e !important">
-                        <tspan class="text-outer-tspan row" x="0" y="-0.1em" dy="1.1em">
-                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
-                            OpenAI
-                          </tspan>
-                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
-                            adapter
-                          </tspan>
-                        </tspan>
-                      </text>
-                    </g>
-                  </g>
-                </g>
-                <g
                   class="node default"
-                  id="dgm0-flowchart-cards-23"
+                  id="dgm0-flowchart-cards-30"
                   data-look="classic"
-                  transform="translate(733.515625, 155.16718673706055)"
+                  transform="translate(910.47265625, 155.16718673706055)"
                 >
                   <rect
                     class="basic label-container"
@@ -1691,9 +1850,9 @@
                 </g>
                 <g
                   class="node default"
-                  id="dgm0-flowchart-strategy-25"
+                  id="dgm0-flowchart-strategy-32"
                   data-look="classic"
-                  transform="translate(733.515625, 298.55077743530273)"
+                  transform="translate(910.47265625, 298.55077743530273)"
                 >
                   <rect
                     class="basic label-container"
@@ -1768,11 +1927,13 @@
         </svg>
       </figure>
       <p>
-        The conversation service interprets a turn in the context of its thread. When the intent
-        calls for products, it delegates to discovery. Discovery builds an allowed API request,
-        validates the response, then filters and ranks candidates. Catalog data supplies the titles,
-        prices and images. The AI adapter handles intent classification and reply generation through
-        separate operations.
+        The chat turn interprets a request in the context of its thread. It uses the injected SDK
+        model for intent classification and reply generation. The conversation domain defines OpenAI
+        as the default provider. App composition resolves that value to an SDK language model. A
+        fallback can be configured later. When the intent calls for products, the turn delegates to
+        discovery. Discovery chooses an allowed query, then filters and ranks the candidates. The
+        DummyJSON adapter validates the catalog response, which supplies the titles, prices and
+        images.
       </p>
       <p>
         A2UI describes a UI surface using data the browser maps to registered components. Here, a
@@ -10102,8 +10263,8 @@
           width="100%"
           xmlns="http://www.w3.org/2000/svg"
           class="flowchart"
-          style="max-width: 940.1796875px"
-          viewBox="0 -9.5 940.1796875 589.0299682617188"
+          style="max-width: 988.2265625px"
+          viewBox="0 -9.5 988.2265625 589.0299682617188"
           role="graphics-document document"
           aria-roledescription="flowchart-v2"
         >
@@ -10640,10 +10801,10 @@
                     style=""
                     x="8"
                     y="-1.5"
-                    width="618.1328125"
+                    width="666.1796875"
                     height="573.0299758911133"
                   ></rect>
-                  <g class="cluster-label" transform="translate(248.13671875, 2.5)">
+                  <g class="cluster-label" transform="translate(272.16015625, 2.5)">
                     <g>
                       <rect class="background" style="stroke: none"></rect>
                       <text y="-10.1" style="">
@@ -10710,14 +10871,14 @@
                   marker-end="url(#dgm10_flowchart-v2-pointEnd)"
                 ></path>
                 <path
-                  d="M414.378,148.68L427.401,143.081C440.424,137.483,466.47,126.286,464.976,115.321C463.483,104.356,434.45,93.621,419.933,88.254L405.417,82.887"
+                  d="M436.762,148.68L454.062,143.081C471.362,137.483,505.962,126.286,503.79,115.269C501.618,104.251,462.673,93.412,443.201,87.992L423.728,82.573"
                   id="dgm10-L_server_browser_0"
                   class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
                   style=""
                   data-edge="true"
                   data-et="edge"
                   data-id="L_server_browser_0"
-                  data-points="W3sieCI6NDE0LjM3NzU4MzMyMzMxMjMsInkiOjE0OC42Nzk2ODc1fSx7IngiOjQ5Mi41MTU2MjUsInkiOjExNS4wODk4NDM3NX0seyJ4Ijo0MDEuNjY1MTI4Mjc2ODgzMSwieSI6ODEuNX1d"
+                  data-points="W3sieCI6NDM2Ljc2MjMzMzEzMzExNTMsInkiOjE0OC42Nzk2ODc1fSx7IngiOjU0MC41NjI1LCJ5IjoxMTUuMDg5ODQzNzV9LHsieCI6NDE5Ljg3NDg0ODc5Mzk2MjYsInkiOjgxLjV9XQ=="
                   data-look="classic"
                   marker-end="url(#dgm10_flowchart-v2-pointEnd)"
                 ></path>
@@ -10734,27 +10895,27 @@
                   marker-end="url(#dgm10_flowchart-v2-pointEnd)"
                 ></path>
                 <path
-                  d="M346.219,211.28L346.219,217.694C346.219,224.108,346.219,236.935,346.219,250.43C346.219,263.924,346.219,278.086,396.549,294.45C446.879,310.814,547.539,329.38,597.869,338.664L648.199,347.947"
+                  d="M346.219,211.28L346.219,217.694C346.219,224.108,346.219,236.935,346.219,250.43C346.219,263.924,346.219,278.086,404.554,294.715C462.89,311.345,579.561,330.442,637.897,339.991L696.232,349.54"
                   id="dgm10-L_server_catalog_0"
                   class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
                   style=""
                   data-edge="true"
                   data-et="edge"
                   data-id="L_server_catalog_0"
-                  data-points="W3sieCI6MzQ2LjIxODc1LCJ5IjoyMDcuMjc5Njg1OTc0MTIxMX0seyJ4IjozNDYuMjE4NzUsInkiOjI0OS43NjMyNzg5NjExODE2NH0seyJ4IjozNDYuMjE4NzUsInkiOjI5Mi4yNDY4NzE5NDgyNDIyfSx7IngiOjY1Mi4xMzI4MTI1LCJ5IjozNDguNjcyNjkwNTc2MDEyOX1d"
+                  data-points="W3sieCI6MzQ2LjIxODc1LCJ5IjoyMDcuMjc5Njg1OTc0MTIxMX0seyJ4IjozNDYuMjE4NzUsInkiOjI0OS43NjMyNzg5NjExODE2NH0seyJ4IjozNDYuMjE4NzUsInkiOjI5Mi4yNDY4NzE5NDgyNDIyfSx7IngiOjcwMC4xNzk2ODc1LCJ5IjozNTAuMTg2MDM3MDU5MTY1MTN9XQ=="
                   data-look="classic"
                   marker-start="url(#dgm10_flowchart-v2-pointStart)"
                   marker-end="url(#dgm10_flowchart-v2-pointEnd)"
                 ></path>
                 <path
-                  d="M427.279,208.697L445.341,215.541C463.402,222.386,499.525,236.075,517.587,250C535.648,263.924,535.648,278.086,584.039,294.955C632.43,311.825,729.212,331.403,777.603,341.192L825.993,350.981"
+                  d="M437.136,208.555L457.558,215.423C477.981,222.291,518.826,236.027,539.249,249.976C559.672,263.924,559.672,278.086,612.065,295.076C664.458,312.066,769.244,331.884,821.637,341.794L874.031,351.703"
                   id="dgm10-L_server_model_0"
                   class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link"
                   style=""
                   data-edge="true"
                   data-et="edge"
                   data-id="L_server_model_0"
-                  data-points="W3sieCI6NDIzLjUzODUwNDEwMDU5NzY2LCJ5IjoyMDcuMjc5Njg1OTc0MTIxMX0seyJ4Ijo1MzUuNjQ4NDM3NSwieSI6MjQ5Ljc2MzI3ODk2MTE4MTY0fSx7IngiOjUzNS42NDg0Mzc1LCJ5IjoyOTIuMjQ2ODcxOTQ4MjQyMn0seyJ4Ijo4MjkuOTE0MDYyNSwieSI6MzUxLjc3MzcyNjYwODE2Njk1fV0="
+                  data-points="W3sieCI6NDMzLjM0NDE4MDgzODMxMTEsInkiOjIwNy4yNzk2ODU5NzQxMjExfSx7IngiOjU1OS42NzE4NzUsInkiOjI0OS43NjMyNzg5NjExODE2NH0seyJ4Ijo1NTkuNjcxODc1LCJ5IjoyOTIuMjQ2ODcxOTQ4MjQyMn0seyJ4Ijo4NzcuOTYwOTM3NSwieSI6MzUyLjQ0NjM3MTE1NjI1OTgzfV0="
                   data-look="classic"
                   marker-start="url(#dgm10_flowchart-v2-pointStart)"
                   marker-end="url(#dgm10_flowchart-v2-pointEnd)"
@@ -10814,7 +10975,7 @@
                     </g>
                   </g>
                 </g>
-                <g class="edgeLabel" transform="translate(492.515625, 115.08984375)">
+                <g class="edgeLabel" transform="translate(540.5625, 115.08984375)">
                   <g
                     class="label"
                     data-id="L_server_browser_0"
@@ -10944,7 +11105,7 @@
                     </g>
                   </g>
                 </g>
-                <g class="edgeLabel" transform="translate(535.6484375, 249.76327896118164)">
+                <g class="edgeLabel" transform="translate(559.671875, 249.76327896118164)">
                   <g
                     class="label"
                     data-id="L_server_model_0"
@@ -10954,9 +11115,9 @@
                       <rect
                         class="background"
                         style=""
-                        x="-70.484375"
+                        x="-94.5078125"
                         y="0"
-                        width="140.96875"
+                        width="189.015625"
                         height="38.967185974121094"
                       ></rect>
                       <text y="-10.1" text-anchor="middle" style="">
@@ -10968,7 +11129,13 @@
                           text-anchor="middle"
                         >
                           <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
-                            HTTPS
+                            Vercel
+                          </tspan>
+                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
+                            AI
+                          </tspan>
+                          <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
+                            SDK
                           </tspan>
                           <tspan font-style="normal" class="text-inner-tspan" font-weight="normal">
                             ·
@@ -11162,7 +11329,7 @@
                   class="node default external"
                   id="dgm10-flowchart-catalog-13"
                   data-look="classic"
-                  transform="translate(725.0234375, 362.11735916137695)"
+                  transform="translate(773.0703125, 362.11735916137695)"
                 >
                   <rect
                     class="basic label-container"
@@ -11194,7 +11361,7 @@
                   class="node default external"
                   id="dgm10-flowchart-model-15"
                   data-look="classic"
-                  transform="translate(881.046875, 362.11735916137695)"
+                  transform="translate(929.09375, 362.11735916137695)"
                 >
                   <rect
                     class="basic label-container"
@@ -11298,8 +11465,8 @@
           <tr>
             <td>One complete turn</td>
             <td>
-              Conversation service, streamed HTTP route, product card, deterministic model and
-              catalog adapters for tests
+              Chat turn, streamed HTTP route, product card, deterministic SDK model and catalog
+              implementations for tests
             </td>
             <td>
               Playwright sees the first text before the final event, a card with price and image,
@@ -11309,7 +11476,8 @@
           <tr>
             <td>Live discovery</td>
             <td>
-              DummyJSON adapter, OpenAI intent and answer adapters, bounded retrieval, query builder
+              SDK integration with OpenAI for intent and replies, DummyJSON adapter, bounded
+              retrieval, query builder
             </td>
             <td>
               Vitest covers ambiguous, off-catalog, multi-intent, out-of-stock, partial and failed

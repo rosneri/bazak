@@ -1,7 +1,7 @@
 packages:
   - apps/*
-  - packages/models/*
-  - packages/providers/*
+  - packages/features/*
+  - packages/adapters/*
   - packages/libraries/*
 
 catalog:

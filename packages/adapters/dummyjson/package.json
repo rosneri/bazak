@@ -1,0 +1,20 @@
+{
+  "name": "@bazak/dummyjson",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/catalog.ts"
+  },
+  "scripts": {
+    "test": "node --test src/catalog.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bazak/product-discovery": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "7.0.2"
+  }
+}

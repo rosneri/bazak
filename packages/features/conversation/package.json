@@ -1,0 +1,18 @@
+{
+  "name": "@bazak/conversation",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./application/chat": "./src/application/chat.ts",
+    "./domain/chat": "./src/domain/chat.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2"
+  }
+}

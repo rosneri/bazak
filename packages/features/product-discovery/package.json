@@ -1,0 +1,19 @@
+{
+  "name": "@bazak/product-discovery",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./application/catalog": "./src/application/catalog.ts",
+    "./domain/discovery": "./src/domain/discovery.ts",
+    "./domain/product": "./src/domain/product.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2"
+  }
+}

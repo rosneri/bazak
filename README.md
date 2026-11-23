@@ -23,26 +23,30 @@ Open [localhost on port 3000](http://localhost:3000). The web starter runs indep
 
 Use `pnpm format` to format the workspace and `pnpm lint` for Oxlint with the 18 generic [anti-slop rules](https://github.com/dmmulroy/anti-slop/tree/c44ef22ca116d0ba62a3ff663a0bd13a3f3fa40b). React Doctor scans the full React project and blocks on warnings. The [Hallmark skill](https://github.com/Nutlope/hallmark/tree/04977e15f3dfd6ee4b74c887dac3eb52665d6c92/skills/hallmark) guides visual review as the UI develops. Its static checker runs with `pnpm ui:check`.
 
+## Workspace layout
+
+- `apps/*` contains deployable apps. `apps/web` owns the shopper interface, HTTP routes, and dependency wiring. The management app is planned for evaluation reporting.
+- `packages/features/*` groups code by capability. Each feature owns its use cases and ports in `application` and its business rules and schemas in `domain`. Add `representation` for feature-specific view models or components and `infrastructure` for small, feature-local implementation details when needed. Chat turns and conversation management belong to the conversation feature.
+- `packages/adapters/dummyjson` implements the product-discovery catalog port against the supplied DummyJSON contract. Adapters depend on feature-owned contracts, and apps wire their implementations into use cases.
+- `packages/libraries/ui` owns the shared Tailwind CSS theme and shadcn/ui primitives. Import the Button from `@bazak/ui/components/button`. To add another primitive, run `pnpm dlx shadcn@4.23.0 add <component> -c packages/libraries/ui` from the repository root.
+- `packages/libraries/*` holds reusable code shared across apps or features.
+
 ## Proposed architecture
 
-- `apps/web` hosts the Next.js frontend, HTTP routes, and the code that wires the adapters together.
-- `packages/libraries/ui` owns the shared Tailwind CSS theme and shadcn/ui primitives. Import the Button from `@bazak/ui/components/button`. To add another primitive, run `pnpm dlx shadcn@4.23.0 add <component> -c packages/libraries/ui` from the repository root.
-- `packages/models/*` groups code by domain, starting with product discovery and conversations. Business rules are pure functions. Each domain can expose its React components through a separate presentation entry point.
-- `packages/providers/*` holds adapters for the catalog, intent classification, and answer generation. The two model adapters can share an OpenAI client while exposing distinct operations.
-- `packages/libraries/*` holds low-level clients and generated API types. Orval can generate a server-side client from the supplied DummyJSON OpenAPI spec. To generate React Query hooks for the app's own conversation endpoints, define those endpoints in a separate API contract. [Orval React Query guide](https://orval.dev/docs/guides/react-query/)
+The conversation feature defines the chat message and send-turn schemas and names OpenAI as the default provider. The planned web app composition will resolve that default to a Vercel AI SDK language model and inject the model into the chat turn. The fallback provider is optional and remains unset.
 
-The proposed stack uses the Vercel AI SDK for model calls and Google's A2UI for product widgets. Each chat turn uses an HTTP POST whose response streams server-sent events (SSE). PostgreSQL will store conversations and evaluation results. The initial design assumes a single local user and fetches catalog results on demand.
+The proposed chat interface uses Google's A2UI for product widgets. Each chat turn uses an HTTP POST whose response streams server-sent events (SSE). PostgreSQL will store conversations and evaluation results. The initial design assumes a single local user and fetches catalog results on demand.
 
 ### Schemas and validation
 
-Zod is the source of truth for runtime schemas and their TypeScript types. Each package that uses Zod declares `"zod": "catalog:"` to use the version pinned in the workspace.
+Zod is the source of truth for runtime schemas and their TypeScript types. Each package that uses Zod declares `"zod": "catalog:"` to use the version pinned in the workspace. Follow the [working agreements](AGENTS.md) for schema and field metadata.
 
 - **Domain models.** Each domain package owns its schemas and derives its types with `z.infer`. Creation, updates, and loading stored data all go through the domain schema. Put cross-field rules in refinements so every path enforces them. For example, a price range is valid only when its minimum is at most its maximum. [Zod parsing and type inference](https://zod.dev/basics)
-- **AI responses.** The provider adapter supplies a Zod output schema to the AI SDK for each structured response. Text can stream as it arrives. Before a structured result drives a catalog query, renders a product widget, or gets saved, the completed result must pass validation and any applicable domain rules. A malformed or interrupted result follows the adapter's error path. [AI SDK structured output](https://ai-sdk.dev/docs/ai-sdk-core/generating-structured-data)
+- **AI responses.** The chat turn will supply a Zod output schema to the AI SDK for each structured response. Text can stream as it arrives. Before a structured result drives a catalog query, renders a product widget, or gets saved, the completed result must pass validation and any applicable domain rules. The turn will handle malformed or interrupted results as failures. [AI SDK structured output](https://ai-sdk.dev/docs/ai-sdk-core/generating-structured-data)
 
 ## Catalog operations
 
-The supplied [OpenAPI specification](assignment/dummyjson_products_openapi.json) defines these GET operations. Parameters in braces are part of the path.
+The assignment uses DummyJSON as the product catalog. Parameters in braces are part of the path. [Catalog API](https://dummyjson.com/products) · [Supplied OpenAPI specification](assignment/dummyjson_products_openapi.json)
 
 | Path                        | Query parameters                             | Use in the copilot                                                    |
 | --------------------------- | -------------------------------------------- | --------------------------------------------------------------------- |
@@ -53,7 +57,7 @@ The supplied [OpenAPI specification](assignment/dummyjson_products_openapi.json)
 | `/products/{id}`            | None                                         | Look up a specific card or refresh its stored price and availability. |
 | `/products/categories`      | None                                         | Get category display names, slugs, and URLs when a UI needs labels.   |
 
-For a request like “show me two fragrances under $50,” the model could return a category, budget, and desired count. The adapter would validate the slug, fetch the category, then apply the budget and stock rules to the results. A bounded search should report whether it exhausted the candidates before claiming it found the cheapest item or that nothing matches.
+For a request like “show me two fragrances under $50,” the model could return a category, budget, and desired count. The application would validate the slug against the catalog, choose the category query, and apply the budget and stock rules to the results. The adapter would issue the request and validate the response. A bounded search should report whether it exhausted the candidates before claiming it found the cheapest item or that nothing matches.
 
 ## Decisions to discuss
 

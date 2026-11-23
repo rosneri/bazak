@@ -2,36 +2,45 @@
 
 A shopper can ask for products, refine the results, and return to the same conversation later. The conversation service owns one active turn per conversation. Product discovery owns the catalog search. Conversation management owns the saved thread list. All three run in one Next.js application.
 
-**Current state.** The repository has a Next.js and TypeScript starter, shared UI primitives, Zod, quality checks, and PostgreSQL in Docker Compose. The diagrams describe the proposed application. The selected chat transport is an HTTP POST with a server-sent events (SSE) response. The product component Strategy is a future UI decision.
+**Current state.** The repository has a Next.js and TypeScript starter, shared UI primitives, Zod, quality checks, and PostgreSQL in Docker Compose. The conversation feature defines chat message and send-turn schemas. The DummyJSON adapter implements paginated keyword and category queries. The diagrams describe the proposed application, including the AI SDK integration and HTTP POST with a server-sent events (SSE) response. The product component Strategy is a future UI decision.
 
 ## Code architecture
 
-Arrows show calls or implemented interfaces. A port is an interface the application owns. Next.js supplies the concrete adapters at startup.
+Arrows show calls or injected dependencies. The web app will assemble the conversation feature with a model from the Vercel AI SDK and wire the catalog and storage ports to their implementations.
 
 ```mermaid
 flowchart TB
   ui["Chat and conversation list"] --> api["Next.js route handlers"]
-  api -->|create, list, open| management["Conversation management"]
-  api -->|send, retry| turns["Conversation service"]
+  subgraph conversation["Conversation feature"]
+    management["Conversation management"]
+    turns["Chat turn"]
+    repo["Conversation repository port"]
+    management --> repo
+    turns --> repo
+  end
+  api -->|create, list, open| management
+  api -->|send, retry| turns
+  api --> composition["Web app composition"]
+  composition -->|inject SDK language model| turns
+  composition -->|select OpenAI by default| sdk["Vercel AI SDK"]
+  sdk --> ai["OpenAI"]
   turns -->|validated search criteria| discovery["Product discovery service"]
-  turns -->|classify or compose| model["AI ports · intent and reply"]
   discovery -->|typed catalog queries| catalog["Product catalog port"]
-  management --> repo["Conversation repository port"]
-  turns --> repo
   repo --> db["PostgreSQL repository"]
   catalog --> dummy["DummyJSON API adapter"]
-  model --> ai["OpenAI adapter"]
   ui -->|product message part| cards["A2UI product surface and shadcn card"]
   cards -.->|future selection by product kind| strategy["Product component Strategy"]
   classDef service fill:#e3efec,stroke:#427467,color:#173f37
   classDef port fill:#f9f2df,stroke:#a0874c,color:#4c3b19
   classDef adapter fill:#eaf0f8,stroke:#7288a3,color:#24354e
+  classDef external fill:#f0ecf7,stroke:#846c9e,color:#3e2c52
   class management,turns,discovery service
-  class repo,catalog,model port
-  class db,dummy,ai adapter
+  class repo,catalog port
+  class db,dummy adapter
+  class sdk,ai external
 ```
 
-The conversation service interprets a turn in the context of its thread. When the intent calls for products, it delegates to discovery. Discovery builds an allowed API request, validates the response, then filters and ranks candidates. Catalog data supplies the titles, prices and images. The AI adapter handles intent classification and reply generation through separate operations.
+The chat turn interprets a request in the context of its thread. It uses the injected SDK model for intent classification and reply generation. The conversation domain defines OpenAI as the default provider. App composition resolves that value to an SDK language model. A fallback can be configured later. When the intent calls for products, the turn delegates to discovery. Discovery chooses an allowed query, then filters and ranks the candidates. The DummyJSON adapter validates the catalog response, which supplies the titles, prices and images.
 
 A2UI describes a UI surface using data the browser maps to registered components. Here, a versioned product message part selects one registered product card built with shadcn/ui. Live results and saved messages use the same mapping. The future Strategy would choose among cards when a second product presentation earns its place.
 
@@ -182,7 +191,7 @@ flowchart TB
     server -->|SQL via repository| pg
   end
   server <-->|HTTPS · catalog query and JSON| catalog["DummyJSON"]
-  server <-->|HTTPS · intent and streamed reply| model["OpenAI"]
+  server <-->|Vercel AI SDK · intent and streamed reply| model["OpenAI"]
   classDef external fill:#eaf0f8,stroke:#7288a3,color:#24354e
   classDef storage fill:#f9f2df,stroke:#a0874c,color:#4c3b19
   class model,catalog external
@@ -198,8 +207,8 @@ The app assumes one local shopper. Browser requests stay on the local Next.js or
 | Slice                     | Deliverable                                                                                                 | Acceptance check                                                                                                                                                                                                                    |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Contracts and storage     | Zod models, repository port, PostgreSQL migration, thread create/list/load                                  | Create two threads, restart the app, and recover their ordered histories. A corrupt message gives a recoverable error without blocking the other thread.                                                                            |
-| One complete turn         | Conversation service, streamed HTTP route, product card, deterministic model and catalog adapters for tests | Playwright sees the first text before the final event, a card with price and image, and the same answer after reload.                                                                                                               |
-| Live discovery            | DummyJSON adapter, OpenAI intent and answer adapters, bounded retrieval, query builder                      | Vitest covers ambiguous, off-catalog, multi-intent, out-of-stock, partial and failed lookups. A live smoke test exercises the assignment model and catalog.                                                                         |
+| One complete turn         | Chat turn, streamed HTTP route, product card, deterministic SDK model and catalog implementations for tests | Playwright sees the first text before the final event, a card with price and image, and the same answer after reload.                                                                                                               |
+| Live discovery            | SDK integration with OpenAI for intent and replies, DummyJSON adapter, bounded retrieval, query builder     | Vitest covers ambiguous, off-catalog, multi-intent, out-of-stock, partial and failed lookups. A live smoke test exercises the assignment model and catalog.                                                                         |
 | Continuation and recovery | History UI, context for follow-ups, idempotent retry, cancellation and write-failure handling               | After a dropped stream, retry produces one user message and at most one final answer. Clear an active thread and verify it stays cleared.                                                                                           |
 | Evaluation and handoff    | Labeled discovery cases, timings and outcomes in PostgreSQL, local results view, submission README          | Report intent accuracy, constraint satisfaction and correct abstention separately from latency. Run the full checks and a fresh local setup. Document observed limitations and two framework trade-offs before the Nov 30 deadline. |
 
