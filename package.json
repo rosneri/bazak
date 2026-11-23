@@ -24,7 +24,11 @@
     "db:studio": "pnpm --filter @bazak/evaluation-store exec prisma studio",
     "build:fixture": "pnpm --filter @bazak/web build:fixture",
     "start:fixture": "pnpm --filter @bazak/web start:fixture",
-    "test": "moon run :test"
+    "test": "moon run :test",
+    "evaluate": "tsx scripts/evaluate.ts",
+    "evaluate:live": "tsx scripts/evaluate-live.ts",
+    "evaluate:import": "tsx packages/adapters/evaluation-store/src/import.ts",
+    "eval:import": "tsx packages/adapters/evaluation-store/src/import.ts"
   },
   "devDependencies": {
     "@oxlint/plugins": "1.90.0",
