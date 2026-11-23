@@ -1,0 +1,28 @@
+{
+  "name": "@bazak/evaluation-store",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/results.ts",
+    "./conversations": "./src/conversations.ts",
+    "./client": "./src/client.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "postinstall": "prisma generate",
+    "test": "node --test src/attempts.test.ts"
+  },
+  "dependencies": {
+    "@bazak/conversation": "workspace:*",
+    "@bazak/evaluations": "workspace:*",
+    "@bazak/product-discovery": "workspace:*",
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "prisma": "7.10.1",
+    "typescript": "7.0.2"
+  }
+}

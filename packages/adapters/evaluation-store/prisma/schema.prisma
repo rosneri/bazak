@@ -1,0 +1,91 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated"
+  moduleFormat        = "esm"
+  importFileExtension = "ts"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model EvaluationResult {
+  id                   String   @id @db.Uuid
+  runId                String   @db.Uuid
+  profile              String
+  outcome              String
+  expected             Json
+  actual               Json
+  caseName             String
+  recordedAt           DateTime @db.Timestamptz(3)
+  intentMatch          Boolean?
+  constraintsSatisfied Boolean?
+  correctAbstention    Boolean?
+  firstOutputMs        Int?
+  durationMs           Int
+  detail               String?
+
+  @@index([recordedAt, id])
+  @@index([runId, recordedAt])
+}
+
+model ShoppingThread {
+  id        String         @id @db.Uuid
+  scope     String
+  title     String
+  createdAt DateTime       @db.Timestamptz(3)
+  updatedAt DateTime       @db.Timestamptz(3)
+  turns     ShoppingTurn[]
+
+  @@index([scope, updatedAt, id])
+}
+
+model ShoppingTurn {
+  threadId  String          @db.Uuid
+  thread    ShoppingThread  @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  turnId    String          @db.Uuid
+  ordinal   Int
+  text      String
+  state     TurnState
+  attempt   Int
+  assistant Json?
+  decision  Json?
+  attempts  TurnAttempt[]
+  searches  SearchEvidence[]
+
+  @@id([threadId, turnId])
+  @@unique([threadId, ordinal])
+}
+
+enum TurnState {
+  running
+  completed
+  failed
+  interrupted
+}
+
+model TurnAttempt {
+  threadId  String       @db.Uuid
+  turnId    String       @db.Uuid
+  number    Int
+  turn      ShoppingTurn @relation(fields: [threadId, turnId], references: [threadId, turnId], onDelete: Cascade)
+  startedAt DateTime     @db.Timestamptz(3)
+  cutoff    DateTime     @db.Timestamptz(3)
+  endedAt   DateTime?    @db.Timestamptz(3)
+  state     TurnState
+  metrics   Json?
+
+  @@id([threadId, turnId, number])
+}
+
+model SearchEvidence {
+  threadId  String       @db.Uuid
+  turnId    String       @db.Uuid
+  category  String
+  criteria  Json
+  endedAt   DateTime     @db.Timestamptz(3)
+  turn      ShoppingTurn @relation(fields: [threadId, turnId], references: [threadId, turnId], onDelete: Cascade)
+
+  @@id([threadId, turnId, category])
+  @@index([category, endedAt])
+}

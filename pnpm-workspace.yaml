@@ -8,6 +8,12 @@ catalog:
   zod: 4.6.7
 
 permissions:
+  "@prisma/engines":
+    build: true
+  prisma:
+    build: true
+  esbuild:
+    build: true
   lefthook:
     build: false
   "hallmark@https://codeload.github.com/Nutlope/hallmark/tar.gz/04977e15f3dfd6ee4b74c887dac3eb52665d6c92":
