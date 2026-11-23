@@ -1,9 +1,14 @@
 import { test, expect } from "@playwright/test";
 import { execFileSync } from "node:child_process";
-import { writeFile, unlink } from "node:fs/promises";
-import { resolve } from "node:path";
+import { randomUUID } from "node:crypto";
+import { mkdtemp, rm, writeFile, unlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { fixtureCases } from "../packages/features/evaluation/src/domain/cases.ts";
 
 const gate = resolve("apps/web/.next-fixture/hold-reply");
+
+const evidence = "<em data-evidence-marker>O'Brien & Co</em>";
 
 test("a shopper sees a streamed reply, reloads, refines and reopens it alongside a scored run", async ({
   page,
@@ -24,7 +29,7 @@ test("a shopper sees a streamed reply, reloads, refines and reopens it alongside
   await writeFile(gate, "");
 
   try {
-    await input.fill("Two fragrances under $50");
+    await input.fill("Two fragrances under $50 " + evidence);
     await input.press("Enter");
     await expect(page.getByText("Here’s what I found.", { exact: true })).toBeVisible();
     await expect(page.getByText(fullReply, { exact: true })).toHaveCount(0);
@@ -48,6 +53,10 @@ test("a shopper sees a streamed reply, reloads, refines and reopens it alongside
     sessionStorage.clear();
   });
   await page.reload();
+  await expect(page.locator(".user-message").first()).toHaveText(
+    "Two fragrances under $50 " + evidence,
+  );
+  await expect(page.locator("[data-evidence-marker]")).toHaveCount(0);
   await expect(page.getByText(fullReply, { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Cedar Wood" })).toBeVisible();
   await input.fill("Show me a cheaper one.");
@@ -76,4 +85,78 @@ test("a shopper sees a streamed reply, reloads, refines and reopens it alongside
   await expect(page.getByRole("heading", { name: "Fixture report" })).toBeVisible();
   await expect(page.getByRole("row", { name: /Strict budget/ })).toContainText("Passed");
   expect([...external]).toEqual([]);
+});
+
+test("loopback pages enforce a fresh script nonce and render imported evidence as text", async ({
+  page,
+}) => {
+  const management = "http://127.0.0.1:3175";
+
+  async function verifyPolicy(url: string) {
+    const response = await page.goto(url);
+    const headers = response?.headers();
+    const policy = headers?.["content-security-policy"];
+    const nonce = policy?.match(/script-src [^;]*'nonce-([^']+)'/)?.[1];
+
+    const inlineNonce = await page
+      .locator("script:not([src])")
+      .first()
+      .evaluate((element) => (element instanceof HTMLScriptElement ? element.nonce : ""));
+
+    expect(nonce).toBeTruthy();
+    expect(inlineNonce).toBe(nonce);
+    expect(policy).toContain("'strict-dynamic'");
+    expect(policy).not.toMatch(/'unsafe-(?:inline|eval)'/);
+    expect(headers?.["x-content-type-options"]).toBe("nosniff");
+    expect(headers?.["referrer-policy"]).toBe("no-referrer");
+    expect(headers?.["cache-control"]).toContain("no-store");
+
+    return nonce;
+  }
+
+  const previousNonce = await verifyPolicy("/");
+  await expect(page.getByRole("button", { name: "New chat" })).toBeVisible();
+  expect(await verifyPolicy("/")).not.toBe(previousNonce);
+
+  const directory = await mkdtemp(join(tmpdir(), "bazak-report-"));
+  const runId = randomUUID();
+  const id = randomUUID();
+  const expected = { ...fixtureCases[1], name: evidence, prompt: evidence };
+
+  try {
+    const file = join(directory, "result.json");
+
+    await writeFile(
+      file,
+      JSON.stringify([
+        {
+          id,
+          runId,
+          profile: "fixture",
+          caseName: evidence,
+          recordedAt: new Date().toISOString(),
+          outcome: "execution-error",
+          expected,
+          actual: { decision: null, groups: [], metrics: null },
+          intentMatch: null,
+          constraintsSatisfied: null,
+          correctAbstention: null,
+          firstOutputMs: null,
+          durationMs: 10,
+          detail: "Fixture evidence",
+        },
+      ]),
+    );
+
+    execFileSync("pnpm", ["eval:import", file], { stdio: "pipe" });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+
+  await verifyPolicy(`${management}/?run=${runId}&case=${id}`);
+  await expect(page.getByRole("heading", { name: evidence })).toBeVisible();
+  await expect(page.locator("blockquote")).toHaveText(evidence);
+  await page.getByText("Expected labels and observed evidence").click();
+  await expect(page.locator("pre")).toContainText(evidence);
+  await expect(page.locator("[data-evidence-marker]")).toHaveCount(0);
 });

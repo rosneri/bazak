@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import { useState } from "react";
+import { approvedCatalogThumbnail } from "@bazak/dummyjson/thumbnail";
 import { Card } from "@bazak/ui/components/card";
 import type { ProductSnapshot } from "@bazak/product-discovery/domain/product";
 import type { MessagePart } from "@bazak/conversation/domain/turn";
@@ -9,19 +9,23 @@ import type { MessagePart } from "@bazak/conversation/domain/turn";
 const dollars = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
 function ProductCard({ product }: { product: ProductSnapshot }) {
-  const [missing, setMissing] = useState(false);
+  const image = approvedCatalogThumbnail(product.imageUrl);
+  const [missingImage, setMissingImage] = useState<string>();
 
   return (
     <Card className="product-card">
       <div className="product-media">
-        {product.imageUrl && !missing ? (
-          <Image
-            src={product.imageUrl}
+        {image && image !== missingImage ? (
+          /* oxlint-disable-next-line nextjs/no-img-element -- The browser loads this approved CDN image without a server fetch. */
+          <img
+            src={image}
             alt=""
             width={160}
             height={160}
-            unoptimized
-            onError={() => setMissing(true)}
+            loading="lazy"
+            decoding="async"
+            referrerPolicy="no-referrer"
+            onError={() => setMissingImage(image)}
           />
         ) : (
           <span className="image-fallback" role="img" aria-label="Product image unavailable">
