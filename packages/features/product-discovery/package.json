@@ -5,15 +5,18 @@
   "exports": {
     "./application/catalog": "./src/application/catalog.ts",
     "./domain/discovery": "./src/domain/discovery.ts",
-    "./domain/product": "./src/domain/product.ts"
+    "./domain/product": "./src/domain/product.ts",
+    "./application/discovery": "./src/application/discovery.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test src/**/*.test.ts"
   },
   "dependencies": {
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@types/node": "^24.0.0",
     "typescript": "7.0.2"
   }
 }

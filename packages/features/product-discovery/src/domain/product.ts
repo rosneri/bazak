@@ -6,6 +6,11 @@ export const productSnapshotSchema = z
     title: z.string().min(1).describe("The catalog title shown to the shopper."),
     description: z.string().describe("The catalog's description of the product."),
     price: z.number().nonnegative().describe("The observed unit price in the catalog currency."),
+    category: z
+      .string()
+      .min(1)
+      .optional()
+      .describe("Category reported on this product by the catalog."),
     stock: z.int().nonnegative().describe("How many units the catalog reported in stock."),
     imageUrl: z.httpUrl().optional().describe("The catalog thumbnail URL when available."),
     observedAt: z.iso

@@ -1,72 +1,146 @@
 import { z } from "zod";
 
 export const categorySlugSchema = z
-  .string()
-  .trim()
-  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
-  .describe("A category slug to use for a catalog lookup.");
+  .enum([
+    "beauty",
+    "fragrances",
+    "furniture",
+    "groceries",
+    "home-decoration",
+    "kitchen-accessories",
+    "laptops",
+    "mens-shirts",
+    "mens-shoes",
+    "mens-watches",
+    "mobile-accessories",
+    "motorcycle",
+    "skin-care",
+    "smartphones",
+    "sports-accessories",
+    "sunglasses",
+    "tablets",
+    "tops",
+    "vehicle",
+    "womens-bags",
+    "womens-dresses",
+    "womens-jewellery",
+    "womens-shoes",
+    "womens-watches",
+  ])
+  .describe("An allowed DummyJSON catalog category.");
 
 export const searchKeywordsSchema = z
   .string()
   .trim()
   .min(1)
-  .describe("Words that describe the products to search for.");
+  .max(120)
+  .describe("Words identifying the requested product.");
+
+export const priceOrderSchema = z
+  .enum(["ascending", "descending"])
+  .describe("The price sort direction.");
 
 export const discoveryCriteriaSchema = z
   .strictObject({
-    category: categorySlugSchema
+    category: categorySlugSchema.optional().describe("Restrict the lookup to this category."),
+    keywords: searchKeywordsSchema.optional().describe("Terms the requested product must match."),
+    maxPrice: z.number().nonnegative().optional().describe("Per-item dollar ceiling."),
+    priceBoundary: z
+      .enum(["exclusive", "inclusive"])
       .optional()
-      .describe("The catalog category that limits this search."),
-    keywords: searchKeywordsSchema
+      .describe("Under is exclusive. Up to is inclusive by default."),
+    priceOrder: priceOrderSchema
       .optional()
-      .describe("The words to search for within the catalog."),
-    maxPrice: z
-      .number()
-      .nonnegative()
-      .optional()
-      .describe("The highest acceptable price per item, in the catalog currency."),
-    priceOrder: z
-      .enum(["ascending", "descending"])
-      .optional()
-      .describe("The requested sort direction for product prices."),
+      .describe("Explicit price ordering requested by the shopper."),
     count: z
       .int()
-      .positive()
+      .min(1)
+      .max(10)
       .optional()
-      .describe("How many matching products the shopper requested."),
+      .describe("Requested number of cards, from one to ten."),
   })
-  .refine((criteria) => criteria.category !== undefined || criteria.keywords !== undefined, {
-    message: "A product search needs a category or keywords.",
+  .refine((c) => Boolean(c.category || c.keywords), "A product target is required.")
+  .describe("Explicit constraints for one product search.");
+
+export type DiscoveryCriteria = z.infer<typeof discoveryCriteriaSchema>;
+
+const label = z.string().trim().min(1).max(80).describe("A short product group name.");
+
+const question = z
+  .string()
+  .trim()
+  .min(1)
+  .max(240)
+  .describe("A question asking for the missing shopping detail.");
+
+const productId = z.string().min(1).max(80).describe("A previously displayed product ID.");
+
+const search = z
+  .strictObject({
+    kind: z.literal("search").describe("Search the catalog for this group."),
+    label,
+    criteria: discoveryCriteriaSchema,
+    readiness: z
+      .enum(["ready", "needs-planning"])
+      .describe(
+        "Ready for explicit and resolved requests. Needs-planning for a broad category that could benefit from relevant shopping history.",
+      ),
   })
-  .describe("Validated criteria for one product search.");
+  .describe("One actionable product request.");
+
+const clarify = z
+  .strictObject({ kind: z.literal("clarify").describe("Ask a clarifying question."), question })
+  .describe("A request needing a more specific product target.");
+
+const offCatalog = z
+  .strictObject({
+    kind: z.literal("off-catalog").describe("The request is outside this product catalog."),
+  })
+  .describe("Catalog scope guidance.");
 
 export const intentDecisionSchema = z
   .discriminatedUnion("kind", [
     z
       .strictObject({
-        kind: z
-          .literal("discover")
-          .describe("The request contains enough information to search for products."),
+        kind: z.literal("discover").describe("Process the ordered shopping requests."),
         searches: z
-          .array(discoveryCriteriaSchema)
+          .array(
+            z
+              .discriminatedUnion("kind", [
+                search,
+                clarify.extend({ label }).describe("A group requiring clarification."),
+                offCatalog.extend({ label }).describe("An off-catalog group."),
+              ])
+              .describe("The action for this requested group."),
+          )
           .min(1)
-          .describe("One set of criteria for each distinct product request."),
+          .max(3)
+          .describe("Up to three groups in the order requested."),
       })
-      .describe("A turn that calls for product discovery."),
+      .describe("One or more independent shopping requests."),
+    clarify,
+    offCatalog,
     z
       .strictObject({
-        kind: z.literal("clarify").describe("The request needs more information before discovery."),
-        question: z.string().trim().min(1).describe("The missing detail to ask the shopper for."),
+        kind: z.literal("detail").describe("Refresh one visible product."),
+        productId,
       })
-      .describe("A turn that asks the shopper to clarify their request."),
+      .describe("Retrieve current facts about a prior card."),
     z
       .strictObject({
-        kind: z
-          .literal("off-catalog")
-          .describe("The shopper asked for something outside the product catalog."),
+        kind: z.literal("cheaper").describe("Find a lower-priced alternative."),
+        productId: productId
+          .nullable()
+          .describe("Named card to compare against, or null for the most recent group."),
       })
-      .describe("A turn that can be answered without a catalog lookup."),
+      .describe("A contextual price refinement."),
+    z
+      .strictObject({
+        kind: z.literal("retry-group").describe("Repeat a specific failed group lookup."),
+        label,
+      })
+      .describe("Retry the named group from a previous turn."),
   ])
-  .describe("The model's interpretation of the shopper's request.");
+  .describe("The model's interpretation of this turn.");
 
 export type IntentDecision = z.infer<typeof intentDecisionSchema>;

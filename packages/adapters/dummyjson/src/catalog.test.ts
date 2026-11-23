@@ -60,7 +60,7 @@ test("returns an empty category page when the catalog has no matches", async () 
   );
 });
 
-test("rejects failed or inconsistent responses instead of returning zero matches", async () => {
+test("rejects invalid responses and preserves a drifting page for coverage checks", async () => {
   const query = {
     source: { kind: "category", category: "fragrances" },
     offset: 0,
@@ -73,13 +73,13 @@ test("rejects failed or inconsistent responses instead of returning zero matches
     Response.json({ products: [{ id: 9 }], total: 1, skip: 0 }),
   );
 
-  const incompleteCatalog = createDummyJsonCatalog(async () =>
+  const driftingCatalog = createDummyJsonCatalog(async () =>
     Response.json({ products: [], total: 1, skip: 0 }),
   );
 
   await assert.rejects(failedCatalog.findPage(query), /HTTP 503/);
   await assert.rejects(malformedCatalog.findPage(query), { name: "ZodError" });
-  await assert.rejects(incompleteCatalog.findPage(query), /unexpected page/);
+  assert.deepEqual(await driftingCatalog.findPage(query), { products: [], total: 1, offset: 0 });
 });
 
 test("rejects a category with path separators before fetch", async () => {
@@ -92,8 +92,41 @@ test("rejects a category with path separators before fetch", async () => {
   });
 
   await assert.rejects(
+    // @ts-expect-error Exercise invalid external input at the adapter boundary.
     catalog.findPage({ source: { kind: "category", category: "../search" }, offset: 0, limit: 10 }),
     { name: "ZodError" },
   );
   assert.equal(attemptedFetch, false);
+});
+
+test("refreshes one numeric product using the detail operation in the supplied OpenAPI contract", async () => {
+  const { readFileSync } = await import("node:fs");
+
+  const spec = JSON.parse(
+    readFileSync(
+      new URL("../../../../assignment/dummyjson_products_openapi.json", import.meta.url),
+      "utf8",
+    ),
+  );
+
+  assert.equal(spec.paths["/products/{id}"].get.parameters[0].name, "id");
+
+  const catalog = createDummyJsonCatalog(async (url, init) => {
+    assert.equal(String(url), "https://dummyjson.com/products/7");
+    assert.equal(init?.redirect, "error");
+
+    return Response.json({
+      id: 7,
+      title: "Rose",
+      description: "A floral scent.",
+      price: 26,
+      stock: 0,
+      category: "fragrances",
+    });
+  });
+
+  assert.equal((await catalog.findById("7"))?.stock, 0);
+  await assert.rejects(catalog.findById("7?skip=0"), { name: "ZodError" });
+  const missing = createDummyJsonCatalog(async () => new Response(null, { status: 404 }));
+  assert.equal(await missing.findById("7"), null);
 });

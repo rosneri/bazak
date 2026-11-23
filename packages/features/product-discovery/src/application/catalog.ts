@@ -37,5 +37,6 @@ export interface CatalogPage {
 }
 
 export interface ProductCatalog {
+  findById(id: string, signal?: AbortSignal): Promise<ProductSnapshot | null>;
   findPage(query: CatalogQuery, signal?: AbortSignal): Promise<CatalogPage>;
 }
