@@ -13,6 +13,10 @@ const id = crypto.randomUUID();
 
 const turnId = crypto.randomUUID();
 
+const host = "localhost:3000";
+
+const origin = "http://" + host;
+
 const conversation = {
   id,
   title: "New chat",
@@ -88,27 +92,47 @@ function setup(services = baseline()) {
   const api = createConversationController({
     getServices: async () => services,
     logger: { error: (event) => errors.push(event) },
+    port: "3000",
   });
 
   return { api, errors };
 }
 
+function rejectingController() {
+  return createConversationController({
+    getServices: () => assert.fail("Rejected requests must not initialize services."),
+    logger: { error: () => assert.fail("Rejected requests must not log a server error.") },
+    port: "3000",
+  });
+}
+
+function read(headers: Record<string, string> = {}) {
+  return new Request(origin + "/api/conversations", { headers: { Host: host, ...headers } });
+}
+
+function write(body: BodyInit, headers: Record<string, string> = {}, signal?: AbortSignal) {
+  const init = {
+    method: "POST",
+    headers: { Host: host, ...headers },
+    body,
+    signal,
+    duplex: "half",
+  };
+
+  return new Request(origin + "/api/conversations", init);
+}
+
 const post = (
   body: { id: string } | { turnId: string; text: string } | { expectedAttempt: number },
   signal?: AbortSignal,
-) =>
-  new Request("http://localhost/api/conversations", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    signal,
-  });
+) => write(JSON.stringify(body), { "Content-Type": "application/json" }, signal);
 
 test("create, repeated create, list and load return the shopper's saved conversation", async () => {
   const services = baseline();
   const { api, errors } = setup(services);
   const created = await api.create(post({ id }));
   assert.equal(created.status, 201);
+  assert.equal(created.headers.get("Cache-Control"), "no-store");
   assert.match(created.headers.get("Content-Type") ?? "", /application\/json/);
   assert.deepEqual(await created.json(), { conversation });
   services.management.create = async () => ({ created: false, conversation });
@@ -116,12 +140,12 @@ test("create, repeated create, list and load return the shopper's saved conversa
   assert.equal(repeated.status, 200);
   assert.deepEqual(await repeated.json(), { conversation });
 
-  const listed = await api.list();
+  const listed = await api.list(read());
   assert.equal(listed.status, 200);
   assert.equal(listed.headers.get("Cache-Control"), "no-store");
   assert.deepEqual(await listed.json(), { conversations: [conversation] });
 
-  const loaded = await api.load(Promise.resolve({ id }));
+  const loaded = await api.load(read(), Promise.resolve({ id }));
   assert.equal(loaded.status, 200);
   assert.equal(loaded.headers.get("Cache-Control"), "no-store");
   assert.deepEqual(await loaded.json(), { conversation, turns: [] });
@@ -203,7 +227,7 @@ test("saved history preserves nullable attempts and complete ordered reply metad
   services.management.load = async () => history;
   const { api, errors } = setup(services);
 
-  const response = await api.load({ id });
+  const response = await api.load(read(), { id });
 
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), history);
@@ -260,11 +284,11 @@ test("bad paths, invalid JSON, a blank message and invalid retry generations ret
   const { api, errors } = setup();
 
   const responses = [
-    api.load({ id: "invalid" }),
+    api.load(read(), { id: "invalid" }),
     api.send(post({ turnId, text: " " }), { id }),
     api.retry(post({ expectedAttempt: 0 }), { id, turnId }),
     api.retry(post({ expectedAttempt: 1 }), { id, turnId: "invalid" }),
-    api.create(new Request("http://localhost", { method: "POST", body: "{" })),
+    api.create(write("{", { "Content-Type": "application/json" })),
   ];
 
   await Promise.all(
@@ -282,11 +306,7 @@ test("generated request validators reject extra properties and limits before ini
   const sendExtra = { turnId, text: "Find lamps.", state: "completed" };
   const retryExtra = { expectedAttempt: 1, text: "Replacement text" };
 
-  const api = createConversationController({
-    getServices: () =>
-      assert.fail("Invalid requests must be rejected before initializing services."),
-    logger: { error: () => assert.fail("Invalid shopper input must not log a server error.") },
-  });
+  const api = rejectingController();
 
   await Promise.all(
     [
@@ -301,6 +321,175 @@ test("generated request validators reject extra properties and limits before ini
       assert.equal((await response.json()).error.code, "invalid_input");
     }),
   );
+});
+
+test("requests use the configured local host and port before loading shopper data", async () => {
+  const api = rejectingController();
+
+  const requests = [
+    api.list(read({ Host: "example.test:3000", "X-Forwarded-Host": host })),
+    api.load(read({ Host: "127.0.0.1:3001" }), { id }),
+    api.create(write(JSON.stringify({ id }), { Host: "example.test:3000", Origin: origin })),
+  ];
+
+  for (const response of await Promise.all(requests)) {
+    assert.equal(response.status, 403);
+    assert.equal(response.headers.get("Cache-Control"), "no-store");
+    // oxlint-disable-next-line no-await-in-loop -- Each response has its own error body.
+    assert.equal((await response.json()).error.code, "forbidden_origin");
+  }
+});
+
+test("create, send and retry reject foreign browser origins and non-JSON writes", async () => {
+  const api = rejectingController();
+
+  const operations = [
+    { invoke: api.create, body: { id } },
+    {
+      invoke: (request: Request) => api.send(request, { id }),
+      body: { turnId, text: "Find lamps." },
+    },
+    {
+      invoke: (request: Request) => api.retry(request, { id, turnId }),
+      body: { expectedAttempt: 1 },
+    },
+  ];
+
+  const mediaType = { "Content-Type": "application/json" };
+
+  const cases: [Record<string, string>, number, string][] = [
+    [{ ...mediaType, Origin: "http://localhost:3001" }, 403, "forbidden_origin"],
+    [{ ...mediaType, "Sec-Fetch-Site": "cross-site" }, 403, "forbidden_origin"],
+    [{ ...mediaType, "Sec-Fetch-Site": "same-site" }, 403, "forbidden_origin"],
+    [{ ...mediaType, Origin: "null", Referer: origin }, 403, "forbidden_origin"],
+    [{ ...mediaType, Referer: "http://example.test/" }, 403, "forbidden_origin"],
+    [{ "Content-Type": "text/plain" }, 415, "unsupported_media_type"],
+    [{ ...mediaType, "Content-Encoding": "gzip" }, 415, "unsupported_media_type"],
+  ];
+
+  await Promise.all(
+    operations.flatMap(({ invoke, body }) =>
+      cases.map(async ([headers, expectedStatus, code]) => {
+        const response = await invoke(write(JSON.stringify(body), headers));
+
+        assert.equal(response.status, expectedStatus);
+        assert.equal((await response.json()).error.code, code);
+      }),
+    ),
+  );
+});
+
+test("same-origin browser headers and UTF-8 JSON are accepted", async () => {
+  const { api } = setup();
+
+  const created = await api.create(
+    write(JSON.stringify({ id }), {
+      Host: "127.0.0.1:3000",
+      "Content-Type": 'application/json; charset="UTF-8"',
+      "Sec-Fetch-Site": "same-origin",
+      Origin: "http://127.0.0.1:3000",
+    }),
+  );
+
+  assert.equal(created.status, 201);
+
+  const sent = await api.send(
+    write(JSON.stringify({ turnId, text: "Find lamps." }), {
+      "Content-Type": "application/json",
+      Referer: origin + "/conversations/" + id,
+    }),
+    { id },
+  );
+
+  assert.deepEqual(await Array.fromAsync(readTurnStream(sent)), [status, results, textDelta, done]);
+});
+
+test("a declared over-limit body is rejected before reading it", async () => {
+  const api = rejectingController();
+  let pulled = false;
+
+  const body = new ReadableStream<Uint8Array>(
+    {
+      pull() {
+        pulled = true;
+      },
+    },
+    { highWaterMark: 0 },
+  );
+
+  const response = await api.create(
+    write(body, {
+      "Content-Type": "application/json",
+      "Content-Length": "65537",
+    }),
+  );
+
+  assert.equal(response.status, 413);
+  assert.equal((await response.json()).error.code, "payload_too_large");
+  assert.equal(response.headers.get("Connection"), "close");
+  assert.equal(pulled, false);
+});
+
+test("chunked bodies over the byte limit are cancelled before a service is initialized", async () => {
+  const api = rejectingController();
+  const chunk = new TextEncoder().encode("א".repeat(17_000));
+  let cancelled = false;
+
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(chunk);
+      controller.enqueue(chunk);
+    },
+    cancel() {
+      cancelled = true;
+    },
+  });
+
+  const response = await api.retry(write(body, { "Content-Type": "application/json" }), {
+    id,
+    turnId,
+  });
+
+  assert.equal(response.status, 413);
+  assert.equal((await response.json()).error.code, "payload_too_large");
+  assert.equal(cancelled, true);
+  assert.equal(body.locked, false);
+});
+
+test("the byte limit includes the exact boundary and invalid UTF-8 returns a request error", async () => {
+  const { api } = setup();
+  const headers = { "Content-Type": "application/json" };
+  const json = JSON.stringify({ id }).padEnd(65_536, " ");
+  const created = await api.create(write(json, { ...headers, "Content-Length": "65536" }));
+
+  assert.equal(created.status, 201);
+
+  const rejected = await rejectingController().create(write(new Uint8Array([255]), headers));
+
+  assert.equal(rejected.status, 400);
+  assert.equal((await rejected.json()).error.code, "invalid_input");
+});
+
+test("a stalled body times out and releases the reader", async ({ mock }) => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const api = rejectingController();
+  let cancelled = false;
+
+  const body = new ReadableStream<Uint8Array>({
+    cancel() {
+      cancelled = true;
+    },
+  });
+
+  const pending = api.create(write(body, { "Content-Type": "application/json" }));
+  mock.timers.tick(10_000);
+  const response = await pending;
+
+  assert.equal(response.status, 408);
+  assert.equal((await response.json()).error.code, "request_timeout");
+  assert.equal(response.headers.get("Connection"), "close");
+  assert.equal(cancelled, true);
+  assert.equal(body.locked, false);
 });
 
 test("send preserves leading and trailing shopper whitespace at the length limit", async () => {
@@ -369,7 +558,7 @@ test("an unexpected service rejection returns and logs one safe HTTP error", asy
   };
 
   const { api, errors } = setup(services);
-  const response = await api.load({ id });
+  const response = await api.load(read(), { id });
 
   assert.equal(response.status, 503);
   assert.deepEqual(await response.json(), {

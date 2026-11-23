@@ -11,4 +11,5 @@ export const routes = createConversationController({
     return services;
   },
   logger: consoleConversationTransportLogger,
+  port: process.env.PORT ?? "3000",
 });

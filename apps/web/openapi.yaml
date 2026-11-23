@@ -2,7 +2,12 @@ openapi: 3.1.0
 info:
   title: Bazak Shopper API
   version: 1.0.0
-  description: Create and recover saved shopping conversations and stream individual turn attempts.
+  description: |
+    Create and recover saved shopping conversations and stream individual turn attempts.
+    Use the local HTTP address and port of the shopper process. POST bodies must be
+    uncompressed UTF-8 application/json, at most 65,536 bytes, and arrive within 10 seconds
+    of route handling. Browser writes must come from the same origin. Direct clients
+    can send JSON without browser headers. The API offers no cross-origin grants.
 paths:
   /api/conversations:
     get:
@@ -18,6 +23,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ConversationListResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenOrigin"
         "500":
           $ref: "#/components/responses/CorruptThread"
         "503":
@@ -34,20 +41,34 @@ paths:
       responses:
         "200":
           description: The shopper conversation with this ID already exists.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ConversationResponse"
         "201":
           description: A conversation with the requested ID was created.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ConversationResponse"
         "400":
           $ref: "#/components/responses/InvalidInput"
+        "403":
+          $ref: "#/components/responses/ForbiddenOrigin"
         "404":
           $ref: "#/components/responses/NotFound"
+        "408":
+          $ref: "#/components/responses/RequestTimeout"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
         "500":
           $ref: "#/components/responses/CorruptThread"
         "503":
@@ -70,6 +91,8 @@ paths:
                 $ref: "#/components/schemas/SavedConversation"
         "400":
           $ref: "#/components/responses/InvalidInput"
+        "403":
+          $ref: "#/components/responses/ForbiddenOrigin"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
@@ -97,8 +120,12 @@ paths:
           $ref: "#/components/responses/TurnStream"
         "400":
           $ref: "#/components/responses/InvalidInput"
+        "403":
+          $ref: "#/components/responses/ForbiddenOrigin"
         "404":
           $ref: "#/components/responses/NotFound"
+        "408":
+          $ref: "#/components/responses/RequestTimeout"
         "409":
           description: The code is thread_busy for another active turn or turn_conflict for the same turn ID with different text.
           headers:
@@ -108,6 +135,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
         "500":
           $ref: "#/components/responses/CorruptThread"
         "503":
@@ -135,8 +166,12 @@ paths:
           $ref: "#/components/responses/TurnStream"
         "400":
           $ref: "#/components/responses/InvalidInput"
+        "403":
+          $ref: "#/components/responses/ForbiddenOrigin"
         "404":
           $ref: "#/components/responses/NotFound"
+        "408":
+          $ref: "#/components/responses/RequestTimeout"
         "409":
           description: The code is thread_busy for another active turn or attempt_conflict for a request specifying a future generation.
           headers:
@@ -146,6 +181,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
         "500":
           $ref: "#/components/responses/CorruptThread"
         "503":
@@ -173,9 +212,55 @@ components:
         type: string
         description: Cache directive returned with saved data and errors.
         enum: [no-store]
+    CloseConnection:
+      description: Closes the HTTP connection after rejecting an incomplete request body.
+      schema:
+        type: string
+        description: Connection directive for an incomplete request.
+        enum: [close]
   responses:
     InvalidInput:
       description: The code is invalid_input for malformed JSON or request values outside the contract.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/NoStore"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiErrorResponse"
+    ForbiddenOrigin:
+      description: The code is forbidden_origin when the request host is outside the local shopper addresses or a write's browser origin is disallowed.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/NoStore"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiErrorResponse"
+    RequestTimeout:
+      description: The code is request_timeout when the shopper has not sent the full body within 10 seconds of route handling.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/NoStore"
+        Connection:
+          $ref: "#/components/headers/CloseConnection"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiErrorResponse"
+    PayloadTooLarge:
+      description: The code is payload_too_large when the declared or actual body is larger than 65,536 bytes.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/NoStore"
+        Connection:
+          $ref: "#/components/headers/CloseConnection"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiErrorResponse"
+    UnsupportedMediaType:
+      description: The code is unsupported_media_type unless the request has an application/json content type and uses uncompressed UTF-8.
       headers:
         Cache-Control:
           $ref: "#/components/headers/NoStore"
@@ -888,8 +973,17 @@ components:
               minLength: 1
               description: A safe shopper-facing explanation of the failure.
     ApiErrorCode:
-      type: string
       description: A stable reason code used for failures returned as HTTP errors.
+      anyOf:
+        - $ref: "#/components/schemas/RepositoryErrorCode"
+        - $ref: "#/components/schemas/RequestPolicyErrorCode"
+    RequestPolicyErrorCode:
+      type: string
+      description: Request policy or body failure detected before application work.
+      enum: [forbidden_origin, request_timeout, payload_too_large, unsupported_media_type]
+    RepositoryErrorCode:
+      type: string
+      description: A stable reason code used for input validation and saved conversation failures.
       enum:
         - invalid_input
         - not_found
@@ -1005,7 +1099,7 @@ components:
     TurnErrorCode:
       description: A stable error code emitted in a terminal SSE frame.
       anyOf:
-        - $ref: "#/components/schemas/ApiErrorCode"
+        - $ref: "#/components/schemas/RepositoryErrorCode"
         - type: string
           description: Failure specific to attempt execution or streaming.
           enum: [provider_configuration, attempt_failed, stream_interrupted]

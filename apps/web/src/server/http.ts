@@ -5,7 +5,9 @@ import {
   turnEventSchema,
   type TurnEvent as DomainTurnEvent,
 } from "@bazak/conversation/domain/turn";
+import { getLoopbackOrigin } from "../../../shared/loopback-origin.ts";
 import {
+  type ApiErrorCode,
   ApiErrorResponse,
   ConversationListResponse,
   ConversationResponse,
@@ -18,8 +20,9 @@ import {
 } from "../api/generated/models.ts";
 import type { ConversationTransportLogger, ConversationTransportOperation } from "./logger.ts";
 import type { ShopperServices } from "./services.ts";
+import { readJsonBody, RequestError, verifyWriteOrigin } from "./write-request.ts";
 
-const httpFailures = {
+const repositoryFailures = {
   invalid_input: [400, "Check the request and try again."],
   not_found: [404, "This chat or turn could not be found."],
   thread_busy: [409, "Another reply is in progress. Your draft is ready to send once it finishes."],
@@ -28,6 +31,14 @@ const httpFailures = {
   corrupt_thread: [500, "This chat could not be read. You can still open other chats."],
   storage_unavailable: [503, "Chat storage is unavailable. Reconnect and try again."],
 } satisfies Record<RepositoryCode, [number, string]>;
+
+const httpFailures = {
+  ...repositoryFailures,
+  forbidden_origin: [403, "Open the shopper from its local address and try again."],
+  request_timeout: [408, "The request took too long to send. Try again."],
+  payload_too_large: [413, "The request is too large. Shorten the message and try again."],
+  unsupported_media_type: [415, "Send the request as uncompressed UTF-8 JSON."],
+} satisfies Record<ApiErrorCode, [number, string]>;
 
 type StreamFailureCode = TurnErrorCode | "stream_interrupted";
 
@@ -47,21 +58,20 @@ const streamFailures = {
   stream_interrupted: "This reply was interrupted. Reload to check its saved status.",
 } satisfies Record<StreamFailureCode, string>;
 
-class InvalidRequestError extends Error {}
-
 function parseInput<T>(result: ZodSafeParseResult<T>): T {
-  if (!result.success) throw new InvalidRequestError();
+  if (!result.success) throw new RequestError("invalid_input");
 
   return result.data;
 }
 
 async function parseBody<T>(schema: ZodType<T>, request: Request): Promise<T> {
+  const text = await readJsonBody(request);
   let body: unknown;
 
   try {
-    body = await request.json();
+    body = JSON.parse(text);
   } catch (cause) {
-    if (cause instanceof SyntaxError) throw new InvalidRequestError();
+    if (cause instanceof SyntaxError) throw new RequestError("invalid_input");
     throw cause;
   }
 
@@ -69,14 +79,14 @@ async function parseBody<T>(schema: ZodType<T>, request: Request): Promise<T> {
 }
 
 function repositoryCode(cause: unknown): RepositoryCode | undefined {
-  if (cause instanceof RepositoryError && Object.hasOwn(httpFailures, cause.code))
+  if (cause instanceof RepositoryError && Object.hasOwn(repositoryFailures, cause.code))
     return cause.code;
 
   return undefined;
 }
 
-function toHttpFailure(cause: unknown): RepositoryCode {
-  if (cause instanceof InvalidRequestError) return "invalid_input";
+function toHttpFailure(cause: unknown): ApiErrorCode {
+  if (cause instanceof RequestError) return cause.code;
 
   return repositoryCode(cause) ?? "storage_unavailable";
 }
@@ -91,30 +101,50 @@ function wasAborted(cause: unknown, signal?: AbortSignal) {
 interface ControllerDependencies {
   getServices: () => ShopperServices | Promise<ShopperServices>;
   logger: ConversationTransportLogger;
+  port: string;
 }
 
 type ConversationPath = { id: string };
 
 type RetryPath = ConversationPath & { turnId: string };
 
-export function createConversationController({ getServices, logger }: ControllerDependencies) {
+export function createConversationController({
+  getServices,
+  logger,
+  port,
+}: ControllerDependencies) {
   async function respond(
     operation: ConversationTransportOperation,
+    request: Request,
     action: () => Promise<Response>,
-    signal?: AbortSignal,
   ) {
     try {
+      const origin = getLoopbackOrigin(request.headers, port);
+
+      if (!origin) throw new RequestError("forbidden_origin");
+
+      if (request.method !== "GET" && request.method !== "HEAD")
+        verifyWriteOrigin(request.headers, origin);
+
       return await action();
     } catch (cause) {
       const code = toHttpFailure(cause);
       const [status, message] = httpFailures[code];
 
-      if (status >= 500 && !wasAborted(cause, signal))
+      if (
+        (code === "corrupt_thread" || code === "storage_unavailable") &&
+        !wasAborted(cause, request.signal)
+      )
         logger.error({ operation, phase: "http", code, status });
+
+      const headers = new Headers({ "Cache-Control": "no-store" });
+
+      if (code === "request_timeout" || code === "payload_too_large")
+        headers.set("Connection", "close");
 
       return Response.json(ApiErrorResponse.parse({ error: { code, message } }), {
         status,
-        headers: { "Cache-Control": "no-store" },
+        headers,
       });
     }
   }
@@ -238,8 +268,8 @@ export function createConversationController({ getServices, logger }: Controller
   }
 
   return {
-    list: () =>
-      respond("list", async () => {
+    list: (request: Request) =>
+      respond("list", request, async () => {
         const { management } = await getServices();
 
         return Response.json(
@@ -248,23 +278,20 @@ export function createConversationController({ getServices, logger }: Controller
         );
       }),
     create: (request: Request) =>
-      respond(
-        "create",
-        async () => {
-          const { id } = await parseBody(CreateConversationInput, request);
-          // Reject malformed requests before initializing services.
-          // react-doctor-disable-next-line react-doctor/server-sequential-independent-await
-          const { management } = await getServices();
-          const { created, conversation } = await management.create(id);
+      respond("create", request, async () => {
+        const { id } = await parseBody(CreateConversationInput, request);
+        // Reject malformed requests before initializing services.
+        // react-doctor-disable-next-line react-doctor/server-sequential-independent-await
+        const { management } = await getServices();
+        const { created, conversation } = await management.create(id);
 
-          return Response.json(ConversationResponse.parse({ conversation }), {
-            status: created ? 201 : 200,
-          });
-        },
-        request.signal,
-      ),
-    load: (params: ConversationPath | Promise<ConversationPath>) =>
-      respond("load", async () => {
+        return Response.json(ConversationResponse.parse({ conversation }), {
+          status: created ? 201 : 200,
+          headers: { "Cache-Control": "no-store" },
+        });
+      }),
+    load: (request: Request, params: ConversationPath | Promise<ConversationPath>) =>
+      respond("load", request, async () => {
         const id = parseInput(Identifier.safeParse((await params).id));
         const { management } = await getServices();
 
@@ -273,36 +300,28 @@ export function createConversationController({ getServices, logger }: Controller
         });
       }),
     send: (request: Request, params: ConversationPath | Promise<ConversationPath>) =>
-      respond(
-        "send",
-        async () => {
-          const id = parseInput(Identifier.safeParse((await params).id));
-          const input = await parseBody(SendTurnInput, request);
-          // Reject malformed requests before initializing services.
-          // react-doctor-disable-next-line react-doctor/server-sequential-independent-await
-          const { chat } = await getServices();
+      respond("send", request, async () => {
+        const id = parseInput(Identifier.safeParse((await params).id));
+        const input = await parseBody(SendTurnInput, request);
+        // Reject malformed requests before initializing services.
+        // react-doctor-disable-next-line react-doctor/server-sequential-independent-await
+        const { chat } = await getServices();
 
-          return stream("send", input.turnId, request, (signal) => chat.send(id, input, signal));
-        },
-        request.signal,
-      ),
+        return stream("send", input.turnId, request, (signal) => chat.send(id, input, signal));
+      }),
     retry: (request: Request, params: RetryPath | Promise<RetryPath>) =>
-      respond(
-        "retry",
-        async () => {
-          const path = await params;
-          const id = parseInput(Identifier.safeParse(path.id));
-          const turnId = parseInput(Identifier.safeParse(path.turnId));
-          const { expectedAttempt } = await parseBody(RetryTurnInput, request);
-          // Reject malformed requests before initializing services.
-          // react-doctor-disable-next-line react-doctor/server-sequential-independent-await
-          const { chat } = await getServices();
+      respond("retry", request, async () => {
+        const path = await params;
+        const id = parseInput(Identifier.safeParse(path.id));
+        const turnId = parseInput(Identifier.safeParse(path.turnId));
+        const { expectedAttempt } = await parseBody(RetryTurnInput, request);
+        // Reject malformed requests before initializing services.
+        // react-doctor-disable-next-line react-doctor/server-sequential-independent-await
+        const { chat } = await getServices();
 
-          return stream("retry", turnId, request, (signal) =>
-            chat.retry(id, turnId, expectedAttempt, signal),
-          );
-        },
-        request.signal,
-      ),
+        return stream("retry", turnId, request, (signal) =>
+          chat.retry(id, turnId, expectedAttempt, signal),
+        );
+      }),
   };
 }

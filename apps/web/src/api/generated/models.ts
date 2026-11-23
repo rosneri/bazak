@@ -3,6 +3,11 @@
  * Do not edit manually.
  * Bazak Shopper API
  * Create and recover saved shopping conversations and stream individual turn attempts.
+ * Use the local HTTP address and port of the shopper process. POST bodies must be
+ * uncompressed UTF-8 application/json, at most 65,536 bytes, and arrive within 10 seconds
+ * of route handling. Browser writes must come from the same origin. Direct clients
+ * can send JSON without browser headers. The API offers no cross-origin grants.
+ *
  * OpenAPI spec version: 1.0.0
  */
 import * as zod from "zod";
@@ -635,7 +640,7 @@ export const SavedConversation = zod
 export type SavedConversation = zod.input<typeof SavedConversation>;
 export type SavedConversationOutput = zod.output<typeof SavedConversation>;
 
-export const ApiErrorCode = zod
+export const RepositoryErrorCode = zod
   .enum([
     "invalid_input",
     "not_found",
@@ -645,6 +650,20 @@ export const ApiErrorCode = zod
     "corrupt_thread",
     "storage_unavailable",
   ])
+  .describe("A stable reason code used for input validation and saved conversation failures.");
+
+export type RepositoryErrorCode = zod.input<typeof RepositoryErrorCode>;
+export type RepositoryErrorCodeOutput = zod.output<typeof RepositoryErrorCode>;
+
+export const RequestPolicyErrorCode = zod
+  .enum(["forbidden_origin", "request_timeout", "payload_too_large", "unsupported_media_type"])
+  .describe("Request policy or body failure detected before application work.");
+
+export type RequestPolicyErrorCode = zod.input<typeof RequestPolicyErrorCode>;
+export type RequestPolicyErrorCodeOutput = zod.output<typeof RequestPolicyErrorCode>;
+
+export const ApiErrorCode = zod
+  .union([RepositoryErrorCode, RequestPolicyErrorCode])
   .describe("A stable reason code used for failures returned as HTTP errors.");
 
 export type ApiErrorCode = zod.input<typeof ApiErrorCode>;
@@ -716,7 +735,7 @@ export type TurnDoneEventOutput = zod.output<typeof TurnDoneEvent>;
 
 export const TurnErrorCode = zod
   .union([
-    ApiErrorCode,
+    RepositoryErrorCode,
     zod
       .enum(["provider_configuration", "attempt_failed", "stream_interrupted"])
       .describe("Failure specific to attempt execution or streaming."),
