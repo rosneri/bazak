@@ -5,6 +5,10 @@
     {
       "name": "anti-slop",
       "specifier": "./tools/oxlint/anti-slop/index.ts"
+    },
+    {
+      "name": "security",
+      "specifier": "./tools/oxlint/security/index.mjs"
     }
   ],
   "categories": {
@@ -20,6 +24,36 @@
       }
     ],
     "react/react-in-jsx-scope": "off",
+    "react/no-danger": "error",
+    "react/forbid-dom-props": ["error", { "forbid": ["srcDoc"] }],
+    "no-eval": "error",
+    "no-implied-eval": "error",
+    "no-new-func": "error",
+    "no-restricted-properties": [
+      "error",
+      {
+        "property": "$queryRawUnsafe",
+        "message": "Use Prisma model operations or a tagged SQL template."
+      },
+      {
+        "property": "$executeRawUnsafe",
+        "message": "Use Prisma model operations or a tagged SQL template."
+      },
+      {
+        "object": "Prisma",
+        "property": "raw",
+        "message": "Interpolate parameters directly in a tagged SQL template."
+      },
+      { "property": "innerHTML", "message": "Render text through React or assign textContent." },
+      { "property": "outerHTML", "message": "Render text through React." },
+      { "property": "insertAdjacentHTML", "message": "Render text through React." },
+      { "property": "setHTMLUnsafe", "message": "Render text through React." },
+      { "property": "parseHTMLUnsafe", "message": "Render text through React." },
+      { "property": "createContextualFragment", "message": "Render text through React." },
+      { "object": "document", "property": "write", "message": "Render text through React." },
+      { "object": "document", "property": "writeln", "message": "Render text through React." }
+    ],
+    "security/tagged-sql": "error",
     "anti-slop/no-array-filter-map": "error",
     "anti-slop/no-reduce-accumulator-copy": "error",
     "anti-slop/no-chained-type-assertions": "error",
