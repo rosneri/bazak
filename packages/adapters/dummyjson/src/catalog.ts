@@ -7,39 +7,25 @@ import { z } from "zod";
 
 const productSchema = z
   .object({
-    id: z
-      .int()
-      .positive()
-      .describe("The numeric DummyJSON product ID.")
-      .meta({ title: "DummyJSON product ID" }),
+    id: z.int().positive().describe("The numeric DummyJSON product ID."),
     title: productSnapshotSchema.shape.title,
     description: productSnapshotSchema.shape.description,
     price: productSnapshotSchema.shape.price,
     stock: productSnapshotSchema.shape.stock,
     thumbnail: productSnapshotSchema.shape.imageUrl,
   })
-  .describe("The DummyJSON product fields used by the discovery feature.")
-  .meta({ title: "DummyJSON product" });
+  .describe("The DummyJSON product fields used by the discovery feature.");
 
 const pageSchema = z
   .object({
-    products: z
-      .array(productSchema)
-      .describe("The products included in this DummyJSON page.")
-      .meta({ title: "DummyJSON products" }),
+    products: z.array(productSchema).describe("The products included in this DummyJSON page."),
     total: z
       .int()
       .nonnegative()
-      .describe("The total number of products matching the query before pagination.")
-      .meta({ title: "DummyJSON match count" }),
-    skip: z
-      .int()
-      .nonnegative()
-      .describe("The offset returned by DummyJSON for this page.")
-      .meta({ title: "DummyJSON page offset" }),
+      .describe("The total number of products matching the query before pagination."),
+    skip: z.int().nonnegative().describe("The offset returned by DummyJSON for this page."),
   })
-  .describe("The DummyJSON response to a paginated product lookup.")
-  .meta({ title: "DummyJSON product page" });
+  .describe("The DummyJSON response to a paginated product lookup.");
 
 export function createDummyJsonCatalog(fetchCatalog: typeof fetch): ProductCatalog {
   return {

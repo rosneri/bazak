@@ -11,40 +11,22 @@ export const catalogQuerySchema = z
       .discriminatedUnion("kind", [
         z
           .strictObject({
-            kind: z
-              .literal("search")
-              .describe("Look up products by keyword.")
-              .meta({ title: "Keyword lookup kind" }),
+            kind: z.literal("search").describe("Look up products by keyword."),
             keywords: searchKeywordsSchema,
           })
-          .describe("A keyword search across catalog products.")
-          .meta({ title: "Catalog keyword search" }),
+          .describe("A keyword search across catalog products."),
         z
           .strictObject({
-            kind: z
-              .literal("category")
-              .describe("Look up products from a single category.")
-              .meta({ title: "Category lookup kind" }),
+            kind: z.literal("category").describe("Look up products from a single category."),
             category: categorySlugSchema,
           })
-          .describe("A lookup within one catalog category.")
-          .meta({ title: "Catalog category lookup" }),
+          .describe("A lookup within one catalog category."),
       ])
-      .describe("The lookup selected by the discovery application.")
-      .meta({ title: "Catalog lookup source" }),
-    offset: z
-      .int()
-      .nonnegative()
-      .describe("The number of catalog matches to skip.")
-      .meta({ title: "Page offset", examples: [0, 30] }),
-    limit: z
-      .int()
-      .positive()
-      .describe("The maximum number of products to fetch in this page.")
-      .meta({ title: "Page size", examples: [30] }),
+      .describe("The lookup selected by the discovery application."),
+    offset: z.int().nonnegative().describe("The number of catalog matches to skip."),
+    limit: z.int().positive().describe("The maximum number of products to fetch in this page."),
   })
-  .describe("A page of catalog results to retrieve through the catalog port.")
-  .meta({ title: "Catalog page query" });
+  .describe("A page of catalog results to retrieve through the catalog port.");
 
 export type CatalogQuery = z.infer<typeof catalogQuerySchema>;
 

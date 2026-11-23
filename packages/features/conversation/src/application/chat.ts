@@ -5,9 +5,7 @@ export const sendTurnInputSchema = z
   .strictObject({
     turnId: z
       .uuid()
-      .describe("A stable client-generated ID reused when resubmitting the same message.")
-      .meta({ title: "Chat turn ID" }),
+      .describe("A stable client-generated ID reused when resubmitting the same message."),
     text: chatMessageSchema.shape.text,
   })
-  .describe("The inputs for submitting a new user turn to a conversation.")
-  .meta({ title: "Send chat turn" });
+  .describe("The inputs for submitting a new user turn to a conversation.");
