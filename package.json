@@ -6,6 +6,8 @@
     "dev": "pnpm --filter @bazak/web dev",
     "build": "pnpm --filter @bazak/web build",
     "start": "pnpm --filter @bazak/web start",
-    "typecheck": "pnpm --filter @bazak/web typecheck"
+    "typecheck": "pnpm --filter @bazak/web typecheck",
+    "db:up": "docker compose up --detach --wait",
+    "db:down": "docker compose down"
   }
 }

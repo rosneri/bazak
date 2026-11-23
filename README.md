@@ -4,14 +4,15 @@ The repository contains a Next.js App Router starter and the [assignment brief](
 
 ## Run locally
 
-From the repository root, use pnpm to install the workspace dependencies and start the web app.
+Install Docker with Compose, then run these commands from the repository root.
 
 ```sh
 pnpm install
+pnpm db:up
 pnpm dev
 ```
 
-Open [localhost on port 3000](http://localhost:3000). Run `pnpm typecheck` for the TypeScript 7 check or `pnpm build` for a production build.
+Open [localhost on port 3000](http://localhost:3000). The web starter runs independently of the database. For local development, connect to `postgresql://bazak:bazak_local@127.0.0.1:55432/bazak`. Use `POSTGRES_PORT` to change the host port or set `POSTGRES_PASSWORD` before initializing the volume. `pnpm db:down` stops the service and preserves its data.
 
 ## Proposed architecture
 
@@ -20,7 +21,7 @@ Open [localhost on port 3000](http://localhost:3000). Run `pnpm typecheck` for t
 - `packages/providers/*` holds adapters for the catalog, intent classification, and answer generation. The two model adapters can share an OpenAI client while exposing distinct operations.
 - `packages/libraries/*` holds low-level clients and generated API types. Orval can generate a server-side client from the supplied DummyJSON OpenAPI spec. To generate React Query hooks for the app's own conversation endpoints, define those endpoints in a separate API contract. [Orval React Query guide](https://orval.dev/docs/guides/react-query/)
 
-The proposed stack uses the Vercel AI SDK for model calls and streaming, and Google's A2UI for product widgets. A local database in Docker will store conversations. The initial design assumes a single local user and fetches catalog results on demand.
+The proposed stack uses the Vercel AI SDK for model calls and streaming, and Google's A2UI for product widgets. PostgreSQL will store conversations and evaluation results. The initial design assumes a single local user and fetches catalog results on demand.
 
 ## Catalog operations
 
@@ -41,6 +42,6 @@ For a request like “show me two fragrances under $50,” the model could retur
 
 - **Streaming.** A chat turn can use one HTTP POST whose response streams text and product data as server-sent events (SSE). The response stays open until that turn finishes. WebSockets would be worth revisiting for a feature that needs ongoing, two-way communication. [AI SDK stream protocols](https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol)
 - **Chat and widgets.** assistant-ui offers React primitives for the composer, message list, and thread selection. Its AI SDK runtime handles client-side conversation state, and a history adapter can load messages from our database. A2UI describes the product surface inside a message. A useful first test is whether a stored product widget renders again after a refresh without calling the model. [assistant-ui architecture](https://www.assistant-ui.com/docs/architecture) · [A2UI overview](https://a2ui.org/concepts/overview/)
-- **Persistence.** MongoDB fits independently stored messages with variable payloads. PostgreSQL also supports those payloads through JSONB and makes it straightforward to group evaluation runs by conversation and outcome. The first storage design should account for ordered messages, retries, and a conversation cleared while a response is streaming. [PostgreSQL JSON types](https://www.postgresql.org/docs/current/datatype-json.html)
+- **Persistence.** The PostgreSQL schema still needs to account for ordered messages, retries, and a conversation cleared while a response is streaming. JSONB can hold the varying text and product-widget payloads. [PostgreSQL JSON types](https://www.postgresql.org/docs/current/datatype-json.html)
 - **Retrieval and freshness.** A typed query builder can limit requests to known operations, the catalog host, and supported fields. The supplied spec exposes budget and stock as product data. Decide how many pages to inspect, when to ask the user for clarification, and when a historical product card should refresh.
 - **Evaluation.** Use Vitest for query construction, domain rules, component tests, and adapter integration. Use Playwright to send a message, observe streaming and product cards, then reload and resume the conversation. For model evaluations, label expected intent and product constraints independently of the model being evaluated. Record constraint satisfaction, correct abstention, time to first output, and total latency by run. A local database can support a dashboard from these measurements.
