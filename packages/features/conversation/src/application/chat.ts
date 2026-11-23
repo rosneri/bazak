@@ -246,11 +246,15 @@ export function createConversationService(deps: Dependencies) {
         const replySignal = stageSignal(signal, 25_000);
         metrics.replyCalls++;
 
+        let framing = "";
+
         for await (const phrase of approvedFraming(model.reply(replySignal), replySignal)) {
-          parts.push({ type: "text", text: phrase });
+          framing += phrase;
           visible();
           yield { type: "text-delta", turnId, text: phrase };
         }
+
+        if (framing) parts.push({ type: "text", text: framing });
       }
 
       signal.throwIfAborted();

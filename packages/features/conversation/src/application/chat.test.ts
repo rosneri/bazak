@@ -249,3 +249,26 @@ test("a rejected completion produces a recoverable error after the preview", asy
     false,
   );
 });
+
+test("only approved sentences stream as they finish and replay as one passage", async () => {
+  const chat = setup({
+    async *reply() {
+      yield "Here’s what ";
+      yield "I found. A bottle costs $17. Would you ";
+      yield "like to narrow the search?";
+    },
+  });
+
+  const turnId = randomUUID();
+  const stream = await drain(chat.send("Two fragrances", turnId));
+  assert.deepEqual(
+    stream.flatMap((event) => (event.type === "text-delta" ? [event.text] : [])),
+    [SAFE_FRAMING[0], " " + SAFE_FRAMING[1]],
+  );
+  const replay = await drain(chat.send("Two fragrances", turnId));
+  const done = replay.find((event) => event.type === "done");
+  assert.deepEqual(
+    done?.assistant.parts.filter((part) => part.type === "text"),
+    [{ type: "text", text: SAFE_FRAMING.join(" ") }],
+  );
+});
