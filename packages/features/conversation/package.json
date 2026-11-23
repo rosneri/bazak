@@ -2,17 +2,28 @@
   "name": "@bazak/conversation",
   "private": true,
   "type": "module",
+  "imports": {
+    "#application/*": "./src/application/*.ts",
+    "#testing/*": "./test/*.ts"
+  },
   "exports": {
     "./application/chat": "./src/application/chat.ts",
-    "./domain/chat": "./src/domain/chat.ts"
+    "./domain/chat": "./src/domain/chat.ts",
+    "./domain/turn": "./src/domain/turn.ts",
+    "./application/query-planner": "./src/application/query-planner.ts",
+    "./application/management": "./src/application/management.ts",
+    "./application/repository": "./src/application/repository.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test src/**/*.test.ts"
   },
   "dependencies": {
+    "@bazak/product-discovery": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@types/node": "^24.0.0",
     "typescript": "7.0.2"
   }
 }

@@ -249,10 +249,16 @@ importers:
 
   packages/features/conversation:
     dependencies:
+      '@bazak/product-discovery':
+        specifier: workspace:*
+        version: link:../product-discovery
       zod:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.2
       typescript:
         specifier: 7.0.2
         version: 7.0.2
