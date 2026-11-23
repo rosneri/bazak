@@ -1,4 +1,5 @@
 node_modules/
+/.moon/cache/
 .next/
 *.tsbuildinfo
 next-env.d.ts

@@ -1,0 +1,12 @@
+$schema: "https://moonrepo.dev/schemas/workspace.json"
+
+projects:
+  - apps/*/package.json
+  - packages/features/*/package.json
+  - packages/adapters/*/package.json
+  - packages/libraries/*/package.json
+
+vcs:
+  defaultBranch: main
+
+telemetry: false

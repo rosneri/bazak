@@ -1,0 +1,8 @@
+$schema: "https://moonrepo.dev/schemas/tasks.json"
+
+implicitDeps:
+  - ^:build
+
+# Package scripts may rely on generated files and local environment variables.
+taskOptions:
+  cache: false

@@ -6,7 +6,7 @@ Keep work on `main` and make one reviewed, completed change per commit. The pare
 
 ## Completed foundation
 
-- The baseline has the [assignment brief](assignment/instructions.md), [DummyJSON OpenAPI contract](assignment/dummyjson_products_openapi.json), and a local Next.js App Router starter with TypeScript 7. [Proto](.prototools) pins Node and pnpm. [Docker Compose](compose.yaml) provides PostgreSQL with a named volume.
+- The baseline has the [assignment brief](assignment/instructions.md), [DummyJSON OpenAPI contract](assignment/dummyjson_products_openapi.json), and a local Next.js App Router starter with TypeScript 7. [Proto](.prototools) pins Node, pnpm, and Moon. [Docker Compose](compose.yaml) provides PostgreSQL with a named volume.
 - [Oxlint](.oxlintrc.json) and [Oxfmt](.oxfmtrc.json) supply lint and formatting, including the 18 generic Backstage anti-slop rules in the local Oxlint plugin. [Lefthook](lefthook.yml) formats staged files on commit and runs workspace checks on push. The [README](README.md) records the React Doctor and Hallmark checks.
 - The [shared UI package](packages/libraries/ui/package.json) provides the shared Tailwind theme and shadcn Button. The workspace pins Zod and the [schema policy](README.md#schemas-and-validation) makes executable schemas the source of inferred types and boundary validation. The lean [agent guide](AGENTS.md) records working agreements.
 - The [Elephant–Goldfish architecture sketch](docs/architecture.md) and its [HTML version](docs/architecture.html) cover eight shopper journeys, domain ownership, code boundaries, and POST/SSE delivery. The [comprehension review](docs/comprehension_report.md) records the earlier design review.

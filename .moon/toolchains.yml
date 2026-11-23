@@ -1,0 +1,13 @@
+$schema: "https://moonrepo.dev/schemas/toolchains.json"
+
+javascript:
+  packageManager: pnpm
+  inferTasksFromScripts: true
+  installDependencies: false
+
+# Use the versions already available through proto on PATH.
+node:
+  versionFromPrototools: false
+
+pnpm:
+  versionFromPrototools: false

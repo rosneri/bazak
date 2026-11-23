@@ -6,7 +6,7 @@ The [architecture sketch](docs/architecture.md) maps the shopper journeys, domai
 
 ## Run locally
 
-Install [proto](https://moonrepo.dev/proto) and Docker with Compose, then run these commands from the repository root.
+Install [proto](https://moonrepo.dev/proto) and Docker with Compose, then run these commands from the repository root. Proto installs the pinned Node.js, pnpm, and Moon versions.
 
 ```sh
 proto install
@@ -19,7 +19,9 @@ Open [localhost on port 3000](http://localhost:3000). The web starter runs indep
 
 ## Development checks
 
-`pnpm install` installs Lefthook and the project-local Hallmark design skill. On commit, Lefthook formats staged files with Oxfmt and stages the fixes. On push, it runs `pnpm check` across the workspace. Run that command locally to check formatting, lint, TypeScript, React Doctor, Hallmark's UI source checks, the Compose configuration, any workspace test scripts, and the production build.
+`pnpm install` installs Lefthook and the project-local Hallmark design skill. On commit, Lefthook formats staged files with Oxfmt and stages the fixes. On push, it runs `pnpm check` across the workspace. The same command runs locally and checks formatting, lint, TypeScript, React Doctor, Hallmark's UI source checks, the Compose configuration, any workspace test scripts, and production builds.
+
+Moon discovers projects from workspace package manifests and uses their workspace dependencies to build the project graph. The workspace checks use Moon to run each package's TypeScript, test, and build scripts where present. Run `moon projects` to list projects, `moon project web` to inspect the web app, or `moon run web:typecheck` to check that project.
 
 Use `pnpm format` to format the workspace and `pnpm lint` for Oxlint with the 18 generic [anti-slop rules](https://github.com/dmmulroy/anti-slop/tree/c44ef22ca116d0ba62a3ff663a0bd13a3f3fa40b). React Doctor scans the full React project and blocks on warnings. The [Hallmark skill](https://github.com/Nutlope/hallmark/tree/04977e15f3dfd6ee4b74c887dac3eb52665d6c92/skills/hallmark) guides visual review as the UI develops. Its static checker runs with `pnpm ui:check`.
 
