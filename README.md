@@ -84,7 +84,7 @@ PostgreSQL stores threads, shopper turns, numbered attempts and committed assist
 
 The integration and browser commands create, migrate and drop their own local database. Browser checks need Google Chrome and free ports 3174 and 3175. A regression that accepts a $50 item for “under $50,” drops a card on reload or duplicates a turn after a lost acknowledgment has a deterministic check. A valid-looking intent for an unfamiliar paraphrase can still be wrong.
 
-On 24 November 2026, the PostgreSQL integration check passed. Two Chrome runs each passed eight of nine tests, including the walkthrough above and the lost-acknowledgment cases. The single-search summary test timed out both times waiting to observe a partial summary alongside the cards. That preview behavior remains unverified. [Summary test](tests/search-summary.spec.ts)
+On 24 November 2026, the PostgreSQL integration check passed. Two Chrome runs each passed eight of nine tests, including the walkthrough above and the lost-acknowledgment cases. The single-search summary test timed out both times waiting to observe a partial summary alongside the cards. A subsequent full `pnpm check` passed all nine browser tests, including the summary preview. [Summary test](tests/search-summary.spec.ts)
 
 On 23 November 2026, a recorded fixture run passed all nine cases, including seven product-constraint checks and two cases requiring zero catalog lookups. Two historical live turns exercised a real product lookup and a history-informed clarification. Those runs give examples of behavior, but the sample is too small to estimate live relevance or reliability. [Recorded results and timings](PROJECT_STATUS.md#verified) · [Manual failure and recovery checks](docs/2026-11-23_MANUAL_VALIDATION.md)
 
