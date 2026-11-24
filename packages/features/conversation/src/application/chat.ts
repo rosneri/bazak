@@ -1,3 +1,6 @@
+import type { UsageObserver } from "@bazak/conversation/domain/usage";
+import { recordInput, type PromptObserver } from "#application/step-input";
+import { routingHistory } from "#application/resolve-references";
 import { streamTurnResponse, type TurnResponse } from "#application/turn-response";
 import { resolveReferences } from "#application/resolve-references";
 import { recentContext, type ContextTurn } from "#application/context";
@@ -52,8 +55,17 @@ export interface ModelInput {
 }
 
 export interface ConversationModel {
-  decide(input: ModelInput, signal: AbortSignal): Promise<ModelDecision>;
-  reply(signal: AbortSignal): AsyncIterable<string>;
+  decide(
+    input: ModelInput,
+    signal: AbortSignal,
+    observe?: PromptObserver,
+    usage?: UsageObserver,
+  ): Promise<ModelDecision>;
+  reply(
+    signal: AbortSignal,
+    observe?: PromptObserver,
+    usage?: UsageObserver,
+  ): AsyncIterable<string>;
 }
 
 export interface ConversationDependencies {
@@ -101,6 +113,9 @@ function startAttempt(
     replyCalls: 0,
     planner: [],
     queries: [],
+    providerUrls: [],
+    stepInputs: [],
+    usage: [],
     firstVisibleMs: null,
     durationMs: 0,
   };
@@ -153,14 +168,28 @@ async function interpretTurn(attempt: TurnAttempt) {
 
   const recent = history.slice(-maxContextTurns);
 
+  const input = { text: turn.text, history: recentContext(recent) };
+  recordInput(metrics, "intent", "Model input", input);
+
   const interpreted = modelDecisionSchema.parse(
     await bounded(
-      () => model.decide({ text: turn.text, history: recentContext(recent) }, intentSignal),
+      () =>
+        model.decide(
+          input,
+          intentSignal,
+          (prompt) => recordInput(metrics, "intent", "Provider prompt", prompt),
+          (usage) => metrics.usage?.push({ stage: "intent", ...usage }),
+        ),
       intentSignal,
     ),
   );
 
-  return intentDecisionSchema.parse(resolveReferences(interpreted, turn.text, recent));
+  metrics.modelProposal = JSON.stringify(interpreted, null, 2);
+
+  const decisionInput = { proposal: interpreted, text: turn.text, history: routingHistory(recent) };
+  recordInput(metrics, "decision", "Routing arguments", decisionInput);
+
+  return intentDecisionSchema.parse(resolveReferences(decisionInput));
 }
 
 async function failAttempt(attempt: TurnAttempt, state: "interrupted" | "failed") {

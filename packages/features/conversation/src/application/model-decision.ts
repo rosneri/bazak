@@ -1,6 +1,8 @@
 import { z } from "zod";
 import {
   intentDecisionSchema,
+  priceAmountSchema,
+  priceBoundarySchema,
   searchKeywordsSchema,
   type DiscoveryCriteria,
   type IntentDecision,
@@ -54,6 +56,16 @@ export const modelDecisionSchema = z
     offCatalog,
     detail,
     cheaper,
+    z
+      .strictObject({
+        kind: z
+          .literal("replace-price")
+          .describe("Replace the previous product search’s price limits."),
+        side: z.enum(["minimum", "maximum"]).describe("The side of the new single price limit."),
+        amount: priceAmountSchema,
+        boundary: priceBoundarySchema,
+      })
+      .describe("A follow-up changing only the price limit of the previous search."),
     retry
       .omit({ label: true })
       .extend({
@@ -114,7 +126,7 @@ export function searchLabel(criteria: DiscoveryCriteria) {
 }
 
 export function authorizeDecision(
-  proposal: ModelDecision,
+  proposal: Exclude<ModelDecision, { kind: "replace-price" }>,
   text: string,
 ): Exclude<IntentDecision, { kind: "retry-group" }> | RetryProposal {
   if (proposal.kind === "clarify") return { kind: "clarify", question: questions[proposal.reason] };

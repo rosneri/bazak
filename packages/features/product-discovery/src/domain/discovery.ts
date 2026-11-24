@@ -40,13 +40,25 @@ export const priceOrderSchema = z
   .enum(["ascending", "descending"])
   .describe("The price sort direction.");
 
+export const priceAmountSchema = z
+  .number()
+  .nonnegative()
+  .describe("A nonnegative per-item dollar amount.");
+
+export const priceBoundarySchema = z
+  .enum(["exclusive", "inclusive"])
+  .describe("Whether a price may equal the bound.");
+
 export const discoveryCriteriaSchema = z
   .strictObject({
     category: categorySlugSchema.optional().describe("Restrict the lookup to this category."),
     keywords: searchKeywordsSchema.optional().describe("Terms the requested product must match."),
-    maxPrice: z.number().nonnegative().optional().describe("Per-item dollar ceiling."),
-    priceBoundary: z
-      .enum(["exclusive", "inclusive"])
+    minPrice: priceAmountSchema.optional().describe("Per-item dollar floor."),
+    minPriceBoundary: priceBoundarySchema
+      .optional()
+      .describe("Above is exclusive. At least is inclusive by default."),
+    maxPrice: priceAmountSchema.optional().describe("Per-item dollar ceiling."),
+    priceBoundary: priceBoundarySchema
       .optional()
       .describe("Under is exclusive. Up to is inclusive by default."),
     priceOrder: priceOrderSchema

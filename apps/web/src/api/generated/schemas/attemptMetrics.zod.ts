@@ -13,6 +13,24 @@
 import * as zod from "zod";
 import { CatalogQuery } from "./catalogQuery.zod.ts";
 
+export const attemptMetricsUsageItemInputMin = 0;
+
+export const attemptMetricsUsageItemOutputMin = 0;
+
+export const attemptMetricsUsageItemCachedMin = 0;
+
+export const attemptMetricsUsageItemWrittenMin = 0;
+
+export const attemptMetricsUsageItemReasoningMin = 0;
+
+export const attemptMetricsUsageItemTotalMin = 0;
+
+export const attemptMetricsUsageItemEstimatedUsdMin = 0;
+
+export const attemptMetricsProviderUrlsMax = 9;
+
+export const attemptMetricsModelProposalMax = 8192;
+
 export const attemptMetricsIntentCallsMin = 0;
 export const attemptMetricsIntentCallsMax = 1;
 
@@ -31,6 +49,76 @@ export const attemptMetricsDurationMsMin = 0;
 
 export const AttemptMetrics = zod
   .strictObject({
+    usage: zod
+      .array(
+        zod
+          .strictObject({
+            stage: zod.enum(["intent", "planner", "reply"]).describe("Model operation."),
+            model: zod.string().describe("Model identifier or local fixture."),
+            input: zod
+              .int()
+              .min(attemptMetricsUsageItemInputMin)
+              .nullable()
+              .describe("Total input tokens including cached input."),
+            output: zod
+              .int()
+              .min(attemptMetricsUsageItemOutputMin)
+              .nullable()
+              .describe("Total output tokens including reasoning."),
+            cached: zod
+              .int()
+              .min(attemptMetricsUsageItemCachedMin)
+              .nullable()
+              .describe("Input tokens read from cache."),
+            written: zod
+              .int()
+              .min(attemptMetricsUsageItemWrittenMin)
+              .nullable()
+              .describe("Input tokens written to cache."),
+            reasoning: zod
+              .int()
+              .min(attemptMetricsUsageItemReasoningMin)
+              .nullable()
+              .describe("Reasoning tokens included in output."),
+            total: zod
+              .int()
+              .min(attemptMetricsUsageItemTotalMin)
+              .nullable()
+              .describe("Combined token count."),
+            estimatedUsd: zod
+              .number()
+              .min(attemptMetricsUsageItemEstimatedUsdMin)
+              .nullable()
+              .describe("Estimated USD under standard pricing."),
+          })
+          .describe("Usage and estimated cost for one model operation."),
+      )
+      .optional()
+      .describe("Usage reported for this attempt by model operation."),
+    stepInputs: zod
+      .array(
+        zod
+          .strictObject({
+            stage: zod
+              .enum(["intent", "decision", "planner", "catalog", "reply"])
+              .describe("Operation that received the input."),
+            name: zod.string().describe("Name of the input at the operation boundary."),
+            value: zod.string().describe("JSON snapshot captured when the operation was invoked."),
+          })
+          .describe("One observed operation input."),
+      )
+      .optional()
+      .describe("Ordered inputs captured during this attempt, when instrumented."),
+    providerUrls: zod
+      .array(zod.url().describe("Exact URL passed to the catalog GET request."))
+      .max(attemptMetricsProviderUrlsMax)
+      .optional()
+      .describe("Catalog HTTP GET attempts in dispatch order, when recorded."),
+    modelProposal: zod
+      .string()
+      .max(attemptMetricsModelProposalMax)
+      .optional()
+      .describe("Serialized validated intent proposal before application routing, when recorded."),
     intentCalls: zod
       .int()
       .min(attemptMetricsIntentCallsMin)

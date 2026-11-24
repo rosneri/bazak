@@ -1,7 +1,7 @@
 import { test, expect, type Page, type Locator } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdtemp, rm, writeFile, unlink } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fixtureCases } from "../packages/features/evaluation/src/domain/cases.ts";
@@ -13,12 +13,17 @@ const evidence = "<em data-evidence-marker>O'Brien & Co</em>";
 const fullReply = "Here’s what I found. Would you like to narrow the search?";
 
 async function expectPartialFragranceReply(page: Page, input: Locator) {
+  const lookupGate = resolve("apps/web/.next-fixture/hold-lookup");
+  await writeFile(lookupGate, "");
   await writeFile(gate, "");
 
   try {
     await input.fill("Two fragrances under $50 " + evidence);
     await input.press("Enter");
-    await expect(page.getByText("Here’s what I found.", { exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: /Loading products/ })).toBeVisible();
+    await unlink(lookupGate);
+    await expect(page.getByText("Here’s what", { exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: /Loading products/ })).toHaveCount(0);
     await expect(page.getByText(fullReply, { exact: true })).toHaveCount(0);
     await expect(page.getByRole("status").filter({ hasText: "Reply in progress" })).toBeVisible();
 
@@ -30,8 +35,80 @@ async function expectPartialFragranceReply(page: Page, input: Locator) {
     await expect(card.getByText(/dewy rose fragrance/)).toBeVisible();
     await expect(card.getByRole("img", { name: "Product image unavailable" })).toBeVisible();
   } finally {
+    await rm(lookupGate, { force: true });
     await unlink(gate);
   }
+}
+
+async function verifyExportAlignment(page: Page, width: number) {
+  await page.setViewportSize({ width, height: 820 });
+  const header = page.locator(".conversation-header");
+  await expect(header).toBeVisible();
+
+  const aligned = await header.evaluate((element) => {
+    const [heading, actions] = Array.from(element.children, (child) =>
+      child.getBoundingClientRect(),
+    );
+
+    const centered =
+      Math.abs((heading.top + heading.bottom - actions.top - actions.bottom) / 2) < 2;
+
+    return centered && actions.left >= heading.right && actions.right <= window.innerWidth;
+  });
+
+  expect(aligned).toBe(true);
+}
+
+async function verifyFollowupInputs(page: Page) {
+  const panel = page.locator(".turn-diagnostics").last();
+  await panel.locator(":scope > summary").click();
+  await expect(panel.locator("li > details[open]")).toHaveCount(0);
+  const intent = panel.locator("li").filter({ hasText: "Intent model" });
+  const decision = panel.locator("li").filter({ hasText: "Application decision" });
+  await intent.locator("summary").first().click();
+  await intent.getByText("Input", { exact: true }).click();
+  await expect(intent.getByText("Model input", { exact: true })).toBeVisible();
+  const modelInput = intent.locator("pre").first();
+  await expect(modelInput).toBeVisible();
+  await expect(modelInput).toContainText("Show me a cheaper one.");
+  await expect(modelInput).toContainText("Rose Water");
+  await expect(intent.locator("pre").last()).toBeVisible();
+  await expect(decision.locator(":scope > details[open]")).toHaveCount(0);
+  await decision.locator("summary").first().click();
+  await decision.getByText("Input", { exact: true }).click();
+  await expect(decision.getByText("Routing arguments", { exact: true })).toBeVisible();
+  await expect(decision.locator("pre").first()).toContainText('"kind": "cheaper"');
+  await expect(decision.locator("pre").last()).toBeVisible();
+  await expect(decision.locator("pre").last()).toContainText('"kind": "discover"');
+  await decision.getByText("Output", { exact: true }).click();
+  await expect(decision.locator("pre").last()).toBeHidden();
+}
+
+async function verifyMarkdownActions(page: Page) {
+  await verifyExportAlignment(page, 375);
+  await verifyExportAlignment(page, 1250);
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.getByRole("button", { name: "Copy", exact: true }).click();
+  await expect(page.getByText("Conversation copied.")).toBeVisible();
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  const pending = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  const download = await pending;
+  expect(download.suggestedFilename()).toMatch(/\.md$/);
+  const path = await download.path();
+  expect(await readFile(path!, "utf8")).toBe(copied);
+
+  for (const expected of [
+    "## Turn 2",
+    "**Input**",
+    "Routing arguments",
+    "**Output**",
+    "Light Citrus",
+    "Debug steps",
+    "Intent model",
+    "catalog requests started",
+  ])
+    expect(copied).toContain(expected);
 }
 
 async function expectSavedFixtureReport(page: Page) {
@@ -91,6 +168,8 @@ test("a shopper sees a streamed reply, reloads, refines and reopens it alongside
     .click();
   await expect(page).toHaveURL(url);
   await expect(page.getByRole("heading", { name: "Light Citrus" })).toBeVisible();
+  await verifyFollowupInputs(page);
+  await verifyMarkdownActions(page);
   await expectSavedFixtureReport(page);
   expect([...external]).toEqual([]);
 });
@@ -172,4 +251,31 @@ test("loopback pages enforce a fresh script nonce and render imported evidence a
   await page.getByText("Expected labels and observed evidence").click();
   await expect(page.locator("pre")).toContainText(evidence);
   await expect(page.locator("[data-evidence-marker]")).toHaveCount(0);
+});
+
+test("the chat explains an empty lookup and explains an unsupported category request after reload", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "New chat" }).click();
+  await expect(page).toHaveURL(/\/conversations\/[\da-f-]{36}$/);
+  const input = page.getByRole("textbox", { name: "Message the shopping assistant" });
+  await input.fill("Find a lamp under $1");
+  await input.press("Enter");
+  const lookup = page.locator(".exchange").first();
+  await lookup.getByText("Debug steps · Attempt 1").click();
+  await expect(lookup).toContainText("No matches");
+  await expect(lookup).toContainText("0 framing calls started");
+  await expect(lookup).not.toContainText(fullReply);
+  await expect(lookup).toContainText("empty · 0 displayed · exhaustive");
+  await input.fill("What categories do you have?");
+  await input.press("Enter");
+  await expect(page.locator(".reply-text").last()).toContainText(
+    "3. Check the current price or stock",
+  );
+  await page.reload();
+  const browse = page.locator(".exchange").last();
+  await browse.getByText("Debug steps · Attempt 1").click();
+  await expect(browse.locator("li").first()).toContainText('"off-catalog"');
+  await expect(browse).toContainText("0 catalog requests started");
 });

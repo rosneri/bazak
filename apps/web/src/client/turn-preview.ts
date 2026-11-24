@@ -2,6 +2,7 @@ import type { Dispatch, SetStateAction } from "react";
 import type { QueryClient } from "@tanstack/react-query";
 import type { ConversationHistory, MessagePart, Turn } from "@bazak/conversation/domain/turn";
 import { getGetConversationQueryKey } from "../api/generated/hooks";
+import { appendDelta, revealText } from "./stream-presentation";
 import { readTurnStream } from "./stream";
 import {
   reconcileConversation,
@@ -14,6 +15,7 @@ export interface Preview {
   turnId: string;
   text: string;
   parts: MessagePart[];
+  pendingLabel?: string;
   unsaved: boolean;
 }
 
@@ -92,11 +94,16 @@ export async function displayTurnStream(response: Response, progress: TurnProgre
       setPreview(markUnsaved);
 
       return;
+    } else if (event.type === "lookup") {
+      setPreview((current) => current && { ...current, pendingLabel: event.label });
+    } else if (event.type === "products") {
+      await revealGroup(event.part, progress);
     } else {
-      const part: MessagePart =
-        event.type === "products" ? event.part : { type: "text", text: event.text };
-
-      setPreview((current) => current && { ...current, parts: appendDelta(current.parts, part) });
+      for await (const delta of revealText(event.text, signal)) {
+        setPreview(
+          (current) => current && { ...current, parts: appendDelta(current.parts, delta) },
+        );
+      }
     }
   }
 
@@ -137,7 +144,7 @@ export async function refreshTurnAfterStream(
 }
 
 export function markUnsaved(preview: Preview | null) {
-  return preview && { ...preview, unsaved: true };
+  return preview && { ...preview, pendingLabel: undefined, unsaved: true };
 }
 
 function replaceTurn(turns: Turn[], next: Turn) {
@@ -146,11 +153,24 @@ function replaceTurn(turns: Turn[], next: Turn) {
     : [...turns, next];
 }
 
-function appendDelta(parts: MessagePart[], part: MessagePart): MessagePart[] {
-  const last = parts.at(-1);
+async function revealGroup(
+  part: Extract<MessagePart, { type: "products" }>,
+  progress: TurnProgress,
+) {
+  const { setPreview, signal } = progress;
+  let message = "";
 
-  if (last?.type === "text" && part.type === "text")
-    return [...parts.slice(0, -1), { type: "text", text: last.text + part.text }];
-
-  return [...parts, part];
+  for await (const delta of revealText(part.group.message, signal)) {
+    const first = !message;
+    message += delta;
+    const visible = { ...part, group: { ...part.group, message } };
+    setPreview(
+      (current) =>
+        current && {
+          ...current,
+          pendingLabel: undefined,
+          parts: [...(first ? current.parts : current.parts.slice(0, -1)), visible],
+        },
+    );
+  }
 }

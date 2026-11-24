@@ -1,0 +1,41 @@
+.turn-diagnostics {
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+}
+.turn-diagnostics summary {
+  cursor: pointer;
+  width: fit-content;
+}
+.turn-diagnostics ol {
+  padding-inline-start: 0;
+  list-style: none;
+}
+.turn-diagnostics summary {
+  display: list-item;
+  list-style-position: inside;
+}
+.step-number {
+  font-variant-numeric: tabular-nums;
+  margin-inline: 0.25rem;
+}
+.debug-input {
+  margin: 0.5rem 1rem;
+}
+.turn-diagnostics li {
+  margin-block: 0.75rem;
+}
+.turn-diagnostics details > details,
+.turn-diagnostics pre {
+  margin-inline-start: 1rem;
+  margin-block: 0.375rem;
+}
+.turn-diagnostics pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.8125rem;
+}
+
+.reply-text,
+.group-message {
+  white-space: pre-line;
+}

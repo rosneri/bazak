@@ -1,0 +1,54 @@
+.lookup-placeholder {
+  margin-block-start: 8px;
+}
+.placeholder-lines {
+  flex: 1;
+  display: grid;
+  gap: 8px;
+}
+.placeholder-lines i {
+  height: 9px;
+  width: 72%;
+  background: var(--rule);
+  border-radius: 4px;
+}
+.placeholder-lines i:nth-child(2) {
+  width: 25%;
+}
+.placeholder-lines i:last-child {
+  width: 88%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .placeholder-lines {
+    animation: lookup-pulse 1.3s ease-in-out infinite alternate;
+  }
+  @keyframes lookup-pulse {
+    to {
+      opacity: 0.45;
+    }
+  }
+}
+.transcript-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.conversation-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 16px;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 16px;
+}
+.conversation-header .conversation-heading {
+  padding: 0;
+  border: 0;
+}
+.export-notice {
+  grid-column: 1 / -1;
+  text-align: end;
+  color: var(--soft-ink);
+  font-size: 0.875rem;
+}

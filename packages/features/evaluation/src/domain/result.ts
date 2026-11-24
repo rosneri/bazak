@@ -1,3 +1,9 @@
+import {
+  usageSummarySchema,
+  combineUsage,
+  formatUsage,
+  summarizeCalls,
+} from "@bazak/conversation/domain/usage";
 import { z } from "zod";
 import { attemptMetricsSchema, groupSchema } from "@bazak/conversation/domain/turn";
 import { intentDecisionSchema } from "@bazak/product-discovery/domain/discovery";
@@ -19,6 +25,9 @@ export const observationSchema = z
     decision: intentDecisionSchema
       .nullable()
       .describe("Validated intent recorded for the final turn, when available."),
+    caseUsage: usageSummarySchema
+      .optional()
+      .describe("Usage across setup and scored turns for this case."),
     groups: z
       .array(groupSchema)
       .describe("Observed committed product groups in presentation order."),
@@ -109,4 +118,12 @@ export function metricCount(results: EvaluationResult[], metric: MetricName) {
   }
 
   return { passed, scored };
+}
+
+export function evaluationUsage(rows: EvaluationResult[]) {
+  const summaries = rows.map(
+    (row) => row.actual.caseUsage ?? summarizeCalls([], row.profile === "fixture" ? 0 : 1),
+  );
+
+  return formatUsage(combineUsage(summaries));
 }

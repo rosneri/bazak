@@ -15,6 +15,8 @@ export function matchesDiscoveryCriteria(product: ProductSnapshot, criteria: Dis
 
   return (
     product.stock > 0 &&
+    (criteria.minPrice === undefined ||
+      price >= cents(criteria.minPrice) + (criteria.minPriceBoundary === "exclusive" ? 1 : 0)) &&
     price <= ceiling &&
     (!criteria.category || product.category === criteria.category) &&
     (!criteria.keywords ||

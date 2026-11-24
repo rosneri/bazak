@@ -13,6 +13,7 @@
 import * as zod from "zod";
 import { TurnDoneEvent } from "./turnDoneEvent.zod.ts";
 import { TurnErrorEvent } from "./turnErrorEvent.zod.ts";
+import { TurnLookupEvent } from "./turnLookupEvent.zod.ts";
 import { TurnProductsEvent } from "./turnProductsEvent.zod.ts";
 import { TurnStatusEvent } from "./turnStatusEvent.zod.ts";
 import { TurnTextDeltaEvent } from "./turnTextDeltaEvent.zod.ts";
@@ -21,6 +22,7 @@ export const TurnEvent = zod
   .discriminatedUnion("type", [
     TurnStatusEvent,
     TurnTextDeltaEvent,
+    TurnLookupEvent,
     TurnProductsEvent,
     TurnDoneEvent,
     TurnErrorEvent,

@@ -1,3 +1,4 @@
+import { callUsageSchema } from "@bazak/conversation/domain/usage";
 import { z } from "zod";
 import {
   discoveryCriteriaSchema,
@@ -85,6 +86,34 @@ const count = z.int().nonnegative().describe("Measured nonnegative count.");
 
 export const attemptMetricsSchema = z
   .strictObject({
+    usage: z
+      .array(callUsageSchema)
+      .optional()
+      .describe("Usage reported for this attempt by model operation."),
+    stepInputs: z
+      .array(
+        z
+          .strictObject({
+            stage: z
+              .enum(["intent", "decision", "planner", "catalog", "reply"])
+              .describe("Operation that received the input."),
+            name: z.string().describe("Name of the input at the operation boundary."),
+            value: z.string().describe("JSON snapshot captured when the operation was invoked."),
+          })
+          .describe("One observed operation input."),
+      )
+      .optional()
+      .describe("Ordered inputs captured during this attempt, when instrumented."),
+    providerUrls: z
+      .array(z.httpUrl().describe("Exact URL passed to the catalog GET request."))
+      .max(9)
+      .optional()
+      .describe("Catalog HTTP GET attempts in dispatch order, when recorded."),
+    modelProposal: z
+      .string()
+      .max(8192)
+      .optional()
+      .describe("Serialized validated intent proposal before application routing, when recorded."),
     intentCalls: count.max(1).describe("Number of intent calls started."),
     plannerCalls: count.max(1).describe("Number of batched planner calls started."),
     catalogCalls: count
@@ -169,6 +198,13 @@ export const turnEventSchema = z
         text: chatMessageSchema.shape.text,
       })
       .describe("A shopper-facing text fragment."),
+    z
+      .strictObject({
+        type: z.literal("lookup").describe("A product lookup has started."),
+        turnId: idSchema,
+        label: groupSchema.shape.label,
+      })
+      .describe("A transient placeholder for the next result group."),
     z
       .strictObject({
         type: z.literal("products").describe("A verified group is available."),

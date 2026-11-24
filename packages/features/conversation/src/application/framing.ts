@@ -5,37 +5,45 @@ export const SAFE_FRAMING = [
   "Would you like to narrow the search?",
 ] as const;
 
-// A sentence can cross provider chunks. Inspect every completed sentence before releasing it.
-// Keep consuming after the two approved sentences so a truncated stream still fails the attempt.
+// Release only prefixes of approved sentences. A changed prefix after publication fails
+// the attempt so the saved answer can never disagree with what the shopper saw.
 export async function* approvedFraming(stream: AsyncIterable<string>, signal: AbortSignal) {
   const iterator = stream[Symbol.asyncIterator]();
   const emitted = new Set<string>();
   let sentence = "";
-  let oversized = false;
+  let visible = 0;
 
   try {
     while (true) {
-      // oxlint-disable-next-line no-await-in-loop -- The provider owns chunk order.
+      // oxlint-disable-next-line no-await-in-loop -- Preserve provider order.
       const chunk = await bounded(() => iterator.next(), signal);
 
-      if (chunk.done) return;
+      if (chunk.done) {
+        if (visible) throw new Error("Incomplete reply sentence.");
 
-      if (emitted.size === SAFE_FRAMING.length) continue;
+        return;
+      }
 
-      for (const character of chunk.value) {
-        if (!oversized) sentence += character;
+      for (const segment of chunk.value.match(/[^.!?]*[.!?]|[^.!?]+$/gu) ?? []) {
+        sentence = (sentence + segment).trimStart().slice(0, 121);
 
-        if (sentence.length > 120) oversized = true;
+        const phrase = SAFE_FRAMING.find(
+          (value) => !emitted.has(value) && value.startsWith(sentence),
+        );
 
-        if (!".!?".includes(character)) continue;
-        const phrase = SAFE_FRAMING.find((allowed) => !oversized && allowed === sentence.trim());
-        sentence = "";
-        oversized = false;
+        if (visible && !phrase) throw new Error("Reply diverged from approved framing.");
+        const end = sentence.trimEnd().length;
 
-        if (phrase && !emitted.has(phrase)) {
-          const delta = emitted.size ? " " + phrase : phrase;
-          emitted.add(phrase);
-          yield delta;
+        if (phrase && end > visible) {
+          const separator = emitted.size && !visible ? " " : "";
+          yield separator + sentence.slice(visible, end);
+          visible = end;
+        }
+
+        if (/[.!?]$/u.test(segment)) {
+          if (phrase === sentence) emitted.add(phrase);
+          sentence = "";
+          visible = 0;
         }
       }
     }

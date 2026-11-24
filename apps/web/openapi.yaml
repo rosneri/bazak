@@ -616,6 +616,14 @@ components:
         keywords:
           $ref: "#/components/schemas/SearchKeywords"
           description: Terms the requested product must match.
+        minPrice:
+          type: number
+          minimum: 0
+          description: Lower limit on the price of one item, in dollars.
+        minPriceBoundary:
+          type: string
+          description: Whether the price may equal the floor. An omitted boundary defaults to inclusive.
+          enum: [exclusive, inclusive]
         maxPrice:
           type: number
           minimum: 0
@@ -861,6 +869,81 @@ components:
           durationMs,
         ]
       properties:
+        usage:
+          type: array
+          description: Usage reported for this attempt by model operation.
+          items:
+            type: object
+            additionalProperties: false
+            description: Usage and estimated cost for one model operation.
+            required: [stage, model, input, output, cached, written, reasoning, total, estimatedUsd]
+            properties:
+              stage:
+                description: Model operation.
+                type: string
+                enum: [intent, planner, reply]
+              model:
+                description: Model identifier or local fixture.
+                type: string
+              input:
+                description: Total input tokens including cached input.
+                type: [integer, "null"]
+                minimum: 0
+              output:
+                description: Total output tokens including reasoning.
+                type: [integer, "null"]
+                minimum: 0
+              cached:
+                description: Input tokens read from cache.
+                type: [integer, "null"]
+                minimum: 0
+              written:
+                description: Input tokens written to cache.
+                type: [integer, "null"]
+                minimum: 0
+              reasoning:
+                description: Reasoning tokens included in output.
+                type: [integer, "null"]
+                minimum: 0
+              total:
+                description: Combined token count.
+                type: [integer, "null"]
+                minimum: 0
+              estimatedUsd:
+                description: Estimated USD under standard pricing.
+                type: [number, "null"]
+                minimum: 0
+        stepInputs:
+          type: array
+          description: Ordered inputs captured during this attempt, when instrumented.
+          items:
+            type: object
+            additionalProperties: false
+            required: [stage, name, value]
+            description: One observed operation input.
+            properties:
+              stage:
+                type: string
+                enum: [intent, decision, planner, catalog, reply]
+                description: Operation that received the input.
+              name:
+                type: string
+                description: Name of the input at the operation boundary.
+              value:
+                type: string
+                description: JSON snapshot captured when the operation was invoked.
+        providerUrls:
+          type: array
+          maxItems: 9
+          description: Catalog HTTP GET attempts in dispatch order, when recorded.
+          items:
+            type: string
+            format: uri
+            description: Exact URL passed to the catalog GET request.
+        modelProposal:
+          type: string
+          maxLength: 8192
+          description: Serialized validated intent proposal before application routing, when recorded.
         intentCalls:
           type: integer
           minimum: 0
@@ -1002,6 +1085,7 @@ components:
       oneOf:
         - $ref: "#/components/schemas/TurnStatusEvent"
         - $ref: "#/components/schemas/TurnTextDeltaEvent"
+        - $ref: "#/components/schemas/TurnLookupEvent"
         - $ref: "#/components/schemas/TurnProductsEvent"
         - $ref: "#/components/schemas/TurnDoneEvent"
         - $ref: "#/components/schemas/TurnErrorEvent"
@@ -1010,6 +1094,7 @@ components:
         mapping:
           status: "#/components/schemas/TurnStatusEvent"
           text-delta: "#/components/schemas/TurnTextDeltaEvent"
+          lookup: "#/components/schemas/TurnLookupEvent"
           products: "#/components/schemas/TurnProductsEvent"
           done: "#/components/schemas/TurnDoneEvent"
           error: "#/components/schemas/TurnErrorEvent"
@@ -1049,6 +1134,20 @@ components:
           type: string
           pattern: '\S'
           description: The visible text fragment, which may include surrounding whitespace.
+    TurnLookupEvent:
+      type: object
+      description: A product lookup has started for the next result group.
+      additionalProperties: false
+      required: [type, turnId, label]
+      properties:
+        type:
+          type: string
+          enum: [lookup]
+          description: Identifies the start of a lookup.
+        turnId:
+          $ref: "#/components/schemas/Identifier"
+        label:
+          $ref: "#/components/schemas/GroupLabel"
     TurnProductsEvent:
       type: object
       description: Presents one verified catalog group before the whole reply is committed.

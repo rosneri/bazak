@@ -66,6 +66,9 @@ export function fixtureCatalog(clock: Clock): ProductCatalog {
     async findPage({ source, offset, limit }, signal) {
       signal?.throwIfAborted();
 
+      // oxlint-disable-next-line no-await-in-loop -- Browser verification holds the catalog response.
+      while (existsSync(".next-fixture/hold-lookup")) await delay(35, undefined, { signal });
+
       const hits = inventory.filter((item) =>
         source.kind === "category"
           ? item.category === source.category
@@ -100,6 +103,17 @@ const counts = new Map([
 
 type Group = Extract<ModelDecision, { kind: "discover" }>["searches"][number];
 
+function fixtureMinimum(text: string) {
+  const match = text.match(/\b(above|over|more than|at least)\s*\$?\s*(\d+(?:\.\d+)?)/);
+
+  if (!match) return;
+
+  return {
+    minPrice: Number(match[2]),
+    minPriceBoundary: match[1] === "at least" ? ("inclusive" as const) : ("exclusive" as const),
+  };
+}
+
 function interpretGroup(text: string): Group {
   const lamp = /lamp/.test(text);
   const fragrance = /fragrance|scent|perfume/.test(text);
@@ -110,6 +124,8 @@ function interpretGroup(text: string): Group {
   if (lamp) criteria.keywords = "lamp";
 
   if (fragrance && /\blight\b/.test(text)) criteria.keywords = "light";
+
+  Object.assign(criteria, fixtureMinimum(text));
 
   const budget = text.match(/\b(under|below|up to|at most|less than)\s*\$?\s*(\d+(?:\.\d+)?)/);
 
@@ -131,7 +147,10 @@ function interpretGroup(text: string): Group {
   return {
     kind: "search",
     criteria,
-    readiness: budget || criteria.count || criteria.priceOrder ? "ready" : "needs-planning",
+    readiness:
+      criteria.minPrice !== undefined || budget || criteria.count || criteria.priceOrder
+        ? "ready"
+        : "needs-planning",
   };
 }
 
@@ -139,6 +158,18 @@ function interpret({ text, history }: ModelInput): ModelDecision {
   const lower = text.toLowerCase();
   const visible = history.flatMap((turn) => turn.groups.flatMap((group) => group.products));
   const named = visible.find((product) => lower.includes(product.title.toLowerCase()));
+
+  const minimum = fixtureMinimum(lower);
+
+  if (minimum && !/fragrance|scent|perfume|lamp/.test(lower))
+    return {
+      kind: "replace-price",
+      side: "minimum",
+      amount: minimum.minPrice,
+      boundary: minimum.minPriceBoundary,
+    };
+
+  if (/what categories|list categories/.test(lower)) return { kind: "off-catalog" };
 
   if (/cheaper/.test(lower)) return { kind: "cheaper", productId: named?.id ?? null };
 
@@ -172,25 +203,39 @@ function interpret({ text, history }: ModelInput): ModelDecision {
   return { kind: "discover", searches: groups };
 }
 
+const fixtureUsage = {
+  model: "fixture",
+  input: 0,
+  output: 0,
+  total: 0,
+  cached: 0,
+  written: 0,
+  reasoning: 0,
+  estimatedUsd: 0,
+};
+
 export const fixtureModel: ConversationModel = {
-  async decide(input, signal) {
+  async decide(input, signal, _prompt, usage) {
+    usage?.(fixtureUsage);
     signal.throwIfAborted();
 
     return interpret(input);
   },
-  async *reply(signal) {
+  async *reply(signal, _prompt, usage) {
+    usage?.(fixtureUsage);
     signal.throwIfAborted();
-    yield SAFE_FRAMING[0];
+    yield "Here’s what ";
 
     // The browser harness holds the fixture's final chunk until the preview is visible.
     // oxlint-disable-next-line no-await-in-loop -- The fixture gate releases after the browser has observed streamed text.
     while (existsSync(".next-fixture/hold-reply")) await delay(35, undefined, { signal });
-    yield " " + SAFE_FRAMING[1];
+    yield "I found. " + SAFE_FRAMING[1];
   },
 };
 
 export const fixturePlanner: QueryPlanner = {
-  async plan(groups, signal) {
+  async plan(groups, signal, _prompt, usage) {
+    usage?.(fixtureUsage);
     signal.throwIfAborted();
 
     return groups.map(({ index, history }) => ({

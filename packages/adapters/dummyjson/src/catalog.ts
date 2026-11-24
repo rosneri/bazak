@@ -1,6 +1,7 @@
 import {
   catalogQuerySchema,
   type ProductCatalog,
+  type ProviderRequestObserver,
 } from "@bazak/product-discovery/application/catalog";
 import { productSnapshotSchema } from "@bazak/product-discovery/domain/product";
 import { z } from "zod";
@@ -110,11 +111,22 @@ function catalogPageUrl(input: z.input<typeof querySchema>) {
   return url;
 }
 
+function requestCatalog(
+  fetchCatalog: typeof fetch,
+  url: URL,
+  signal?: AbortSignal,
+  onRequest?: ProviderRequestObserver,
+) {
+  onRequest?.(url.href);
+
+  return fetchCatalog(url, { signal, redirect: "error", cache: "no-store" });
+}
+
 export function createDummyJsonCatalog(fetchCatalog: typeof fetch): ProductCatalog {
   return {
-    async findPage(input, signal) {
+    async findPage(input, signal, onRequest) {
       const url = catalogPageUrl(input);
-      const response = await fetchCatalog(url, { signal, redirect: "error", cache: "no-store" });
+      const response = await requestCatalog(fetchCatalog, url, signal, onRequest);
 
       if (!response.ok) {
         void response.body?.cancel().catch(() => {});
@@ -130,14 +142,11 @@ export function createDummyJsonCatalog(fetchCatalog: typeof fetch): ProductCatal
         offset: page.skip,
       };
     },
-    async findById(rawId, signal) {
+    async findById(rawId, signal, onRequest) {
       const id = detailIdSchema.parse(rawId);
 
-      const response = await fetchCatalog(new URL("https://dummyjson.com/products/" + id), {
-        signal,
-        redirect: "error",
-        cache: "no-store",
-      });
+      const url = new URL("https://dummyjson.com/products/" + id);
+      const response = await requestCatalog(fetchCatalog, url, signal, onRequest);
 
       if (!response.ok) {
         void response.body?.cancel().catch(() => {});

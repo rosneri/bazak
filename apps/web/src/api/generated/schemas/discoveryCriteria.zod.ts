@@ -14,6 +14,8 @@ import * as zod from "zod";
 import { CategorySlug } from "./categorySlug.zod.ts";
 import { SearchKeywords } from "./searchKeywords.zod.ts";
 
+export const discoveryCriteriaMinPriceMin = 0;
+
 export const discoveryCriteriaMaxPriceMin = 0;
 
 export const discoveryCriteriaCountMax = 10;
@@ -22,6 +24,17 @@ export const DiscoveryCriteria = zod
   .strictObject({
     category: CategorySlug.optional().describe("Restricts the lookup to this catalog category."),
     keywords: SearchKeywords.optional().describe("Terms the requested product must match."),
+    minPrice: zod
+      .number()
+      .min(discoveryCriteriaMinPriceMin)
+      .optional()
+      .describe("Lower limit on the price of one item, in dollars."),
+    minPriceBoundary: zod
+      .enum(["exclusive", "inclusive"])
+      .optional()
+      .describe(
+        "Whether the price may equal the floor. An omitted boundary defaults to inclusive.",
+      ),
     maxPrice: zod
       .number()
       .min(discoveryCriteriaMaxPriceMin)

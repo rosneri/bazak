@@ -11,9 +11,22 @@ import {
 
 import { productGroupsOf } from "#application/context";
 
+export function routingHistory(turns: Turn[]) {
+  return turns.map((turn) => ({
+    text: turn.text,
+    groups: productGroupsOf(turn).map(({ kind, criteria, products }) => ({
+      kind,
+      criteria,
+      products: products.map(({ id, price }) => ({ id, price })),
+    })),
+  }));
+}
+
+type RoutingHistory = ReturnType<typeof routingHistory>;
+
 const clarify = (question: string): IntentDecision => ({ kind: "clarify", question });
 
-function authorizePriorCriteria(criteria: DiscoveryCriteria, history: Turn[]) {
+function authorizePriorCriteria(criteria: DiscoveryCriteria, history: RoutingHistory) {
   const { keywords } = criteria;
 
   if (!keywords) return criteria;
@@ -22,9 +35,9 @@ function authorizePriorCriteria(criteria: DiscoveryCriteria, history: Turn[]) {
   if (grounded) return { ...criteria, keywords: grounded };
 }
 
-function resolveRetryGroup(group: number, history: Turn[]): IntentDecision {
+function resolveRetryGroup(group: number, history: RoutingHistory): IntentDecision {
   const turn = history[Math.floor(group / maxGroups)];
-  const previous = turn && productGroupsOf(turn)[group % maxGroups];
+  const previous = turn?.groups[group % maxGroups];
 
   const criteria =
     previous?.kind === "lookup-error" && previous.criteria
@@ -48,11 +61,11 @@ function resolveRetryGroup(group: number, history: Turn[]): IntentDecision {
 
 function resolveCheaperSearch(
   decision: Extract<IntentDecision, { kind: "cheaper" }>,
-  history: Turn[],
+  history: RoutingHistory,
 ): IntentDecision {
   const visible = [...history]
     .reverse()
-    .map(productGroupsOf)
+    .map((turn) => turn.groups)
     .map((groups) => groups.filter((group) => group.products.length && group.criteria));
 
   const group = decision.productId
@@ -95,18 +108,56 @@ function resolveCheaperSearch(
   };
 }
 
-export function resolveReferences(
-  proposal: ModelDecision,
-  text: string,
-  history: Turn[],
+function replacePrice(
+  proposal: Extract<ModelDecision, { kind: "replace-price" }>,
+  history: RoutingHistory,
 ): IntentDecision {
+  const groups = history
+    .map((turn) => turn.groups)
+    .reverse()
+    .find((items) => items.length > 0);
+
+  const previous = groups?.length === 1 && groups[0].criteria;
+  const prior = previous && authorizePriorCriteria(previous, history);
+
+  if (!prior) return clarify("Which product group should I apply that price limit to?");
+
+  const criteria = { ...prior };
+  delete criteria.minPrice;
+  delete criteria.minPriceBoundary;
+  delete criteria.maxPrice;
+  delete criteria.priceBoundary;
+
+  if (proposal.side === "minimum") {
+    criteria.minPrice = proposal.amount;
+    criteria.minPriceBoundary = proposal.boundary;
+  } else {
+    criteria.maxPrice = proposal.amount;
+    criteria.priceBoundary = proposal.boundary;
+  }
+
+  return {
+    kind: "discover",
+    searches: [{ kind: "search", label: searchLabel(criteria), criteria, readiness: "ready" }],
+  };
+}
+
+export function resolveReferences({
+  proposal,
+  text,
+  history,
+}: {
+  proposal: ModelDecision;
+  text: string;
+  history: RoutingHistory;
+}): IntentDecision {
+  if (proposal.kind === "replace-price") return replacePrice(proposal, history);
+
   const decision = authorizeDecision(proposal, text);
 
   if (decision.kind === "detail") {
     return history.some((turn) =>
-      productGroupsOf(turn).some((group) =>
-        group.products.some((p) => p.id === decision.productId),
-      ),
+      turn.groups.some((group) => group.products.some((p) => p.id === decision.productId)),
     )
       ? decision
       : clarify("Which previously shown product would you like me to check?");

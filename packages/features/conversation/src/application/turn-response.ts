@@ -1,3 +1,4 @@
+import { recordInput } from "#application/step-input";
 import { approvedFraming } from "#application/framing";
 import { bounded, stageSignal } from "#application/deadline";
 import type { ConversationDependencies, ConversationEvent } from "#application/chat";
@@ -15,8 +16,12 @@ export interface TurnResponse {
   markVisible(): void;
 }
 
-const scopeGuidance =
-  "I can help you find products in the catalog. What would you like to shop for?";
+const scopeGuidance = [
+  "This action is not supported at the moment. You can ask me to:",
+  "1. Find a product, like a desk lamp.",
+  "2. Search within a budget, like fragrances under $50.",
+  "3. Check the current price or stock of a product I’ve shown you.",
+].join("\n");
 
 function guidance(group: Exclude<SearchGroup, { kind: "search" }>): ResultGroup {
   return {
@@ -43,15 +48,19 @@ async function resolveSearchGroup(
       criteria: group.criteria,
     };
 
+  const input = { label: group.label, criteria: group.criteria, hint: plan?.hint };
+  recordInput(response.metrics, "catalog", "Lookup arguments", input);
+
   return bounded(
     () =>
       response.deps.discovery.lookup(
-        { label: group.label, criteria: group.criteria, hint: plan?.hint },
+        input,
         retrieval,
         (query) => {
           response.metrics.catalogCalls++;
           response.metrics.queries.push(query);
         },
+        (url) => response.metrics.providerUrls?.push(url),
       ),
     retrieval,
   );
@@ -84,6 +93,10 @@ async function* streamSearchGroups(
 
   for (const [index, group] of groups.entries()) {
     signal.throwIfAborted();
+
+    if (group.kind === "search" && !plans.get(index)?.question)
+      yield { type: "lookup", turnId: response.turnId, label: group.label };
+
     // Deliver each group before requesting the next.
     // oxlint-disable-next-line no-await-in-loop
     const result = await resolveSearchGroup(group, plans.get(index), response, retrieval);
@@ -100,8 +113,12 @@ async function loadProductDetail(response: TurnResponse, productId: string): Pro
 
   const retrieval = stageSignal(signal, 25_000);
   metrics.catalogCalls++;
+  recordInput(metrics, "catalog", "Detail arguments", { productId });
 
-  const snapshot = await bounded(() => discovery.detail(productId, retrieval), retrieval);
+  const snapshot = await bounded(
+    () => discovery.detail(productId, retrieval, (url) => metrics.providerUrls?.push(url)),
+    retrieval,
+  );
 
   return snapshot
     ? {
@@ -137,7 +154,14 @@ async function* streamReplyFraming(response: TurnResponse): AsyncGenerator<Conve
 
   let framing = "";
 
-  for await (const phrase of approvedFraming(model.reply(replySignal), replySignal)) {
+  for await (const phrase of approvedFraming(
+    model.reply(
+      replySignal,
+      (prompt) => recordInput(metrics, "reply", "Provider prompt", prompt),
+      (usage) => metrics.usage?.push({ stage: "reply", ...usage }),
+    ),
+    replySignal,
+  )) {
     framing += phrase;
     response.markVisible();
     yield { type: "text-delta", turnId, text: phrase };
@@ -150,6 +174,8 @@ export async function* streamTurnResponse(
   response: TurnResponse,
   decision: IntentDecision,
 ): AsyncGenerator<ConversationEvent> {
+  recordInput(response.metrics, "reply", "Response decision", decision);
+
   if (decision.kind === "clarify" || decision.kind === "off-catalog") {
     const text = decision.kind === "clarify" ? decision.question : scopeGuidance;
     response.parts.push({ type: "text", text });
@@ -160,8 +186,11 @@ export async function* streamTurnResponse(
   }
 
   if (decision.kind === "discover") yield* streamSearchGroups(response, decision.searches);
-  else if (decision.kind === "detail")
+  else if (decision.kind === "detail") {
+    yield { type: "lookup", turnId: response.turnId, label: "Product details" };
     yield recordProductGroup(response, await loadProductDetail(response, decision.productId));
-  else throw new Error("Unresolved reference.");
-  yield* streamReplyFraming(response);
+  } else throw new Error("Unresolved reference.");
+
+  if (response.parts.some((part) => part.type === "products" && part.group.kind === "matched"))
+    yield* streamReplyFraming(response);
 }

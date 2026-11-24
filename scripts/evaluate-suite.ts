@@ -1,3 +1,8 @@
+import {
+  attemptUsage,
+  combineUsage,
+  type UsageSummary,
+} from "../packages/features/conversation/src/domain/usage.ts";
 import { randomUUID } from "node:crypto";
 import type { Turn } from "../packages/features/conversation/src/domain/turn.ts";
 import type { ShopperServices } from "../apps/web/src/server/services.ts";
@@ -9,6 +14,7 @@ import {
   type EvaluationCase,
 } from "../packages/features/evaluation/src/domain/cases.ts";
 import {
+  evaluationUsage,
   evaluationPassed,
   evaluationResultSchema,
   type Profile,
@@ -19,7 +25,13 @@ import { observe, score } from "../packages/features/evaluation/src/application/
 
 type Factory = (repository: ReturnType<typeof createConversationRepository>) => ShopperServices;
 
-async function sendAndReloadTurn(services: ShopperServices, threadId: string, prompt: string) {
+async function sendAndReloadTurn(
+  services: ShopperServices,
+  threadId: string,
+  prompt: string,
+  measured: UsageSummary[],
+) {
+  const index = measured.push(attemptUsage(null)) - 1;
   const turnId = randomUUID();
   const stream = await services.chat.send(threadId, { turnId, text: prompt });
   let diagnostic: string | null = null;
@@ -33,6 +45,8 @@ async function sendAndReloadTurn(services: ShopperServices, threadId: string, pr
 
   if (!turn) throw new Error("The conversation did not retain the scored turn.");
 
+  measured[index] = attemptUsage(turn.metrics);
+
   return { turn, diagnostic };
 }
 
@@ -42,12 +56,16 @@ async function prepareEvaluationThread(
   services: ShopperServices,
   threadId: string,
   expected: EvaluationCase,
+  measured: UsageSummary[],
 ) {
   if (expected.priorChat) {
     const prior = randomUUID();
     await services.management.create(prior);
 
-    if ((await sendAndReloadTurn(services, prior, expected.priorChat)).turn.state !== "completed")
+    if (
+      (await sendAndReloadTurn(services, prior, expected.priorChat, measured)).turn.state !==
+      "completed"
+    )
       throw new Error("Background chat failed.");
   }
 
@@ -55,12 +73,13 @@ async function prepareEvaluationThread(
 
   if (
     expected.priorTurn &&
-    (await sendAndReloadTurn(services, threadId, expected.priorTurn)).turn.state !== "completed"
+    (await sendAndReloadTurn(services, threadId, expected.priorTurn, measured)).turn.state !==
+      "completed"
   )
     throw new Error("Background turn failed.");
 }
 
-function measureTurnTiming(turn: Turn, startedAt: number) {
+function measureTurnTiming(turn: Pick<Turn, "metrics">, startedAt: number) {
   return {
     recordedAt: new Date().toISOString(),
     firstOutputMs: turn.metrics?.firstVisibleMs ?? null,
@@ -95,6 +114,20 @@ function executionErrorResult(
   });
 }
 
+function scoredResult(
+  base: CaseIdentity,
+  actual: Observation,
+  timing: ReturnType<typeof measureTurnTiming>,
+) {
+  return evaluationResultSchema.parse({
+    ...base,
+    ...timing,
+    actual,
+    outcome: "observed",
+    ...score(base.expected, actual),
+  });
+}
+
 export async function executeCase(
   factory: Factory,
   runId: string,
@@ -106,25 +139,25 @@ export async function executeCase(
   const threadId = randomUUID();
   let startedAt = Date.now();
   let detail = "Could not execute this case. Check local storage and the service configuration.";
+  const measured: UsageSummary[] = [];
   const base = { id: randomUUID(), runId, caseName: expected.name, profile, expected };
 
   try {
-    await prepareEvaluationThread(services, threadId, expected);
+    await prepareEvaluationThread(services, threadId, expected, measured);
     startedAt = Date.now();
-    const { turn, diagnostic } = await sendAndReloadTurn(services, threadId, expected.prompt);
-    const actual = observe(turn);
+
+    const { turn, diagnostic } = await sendAndReloadTurn(
+      services,
+      threadId,
+      expected.prompt,
+      measured,
+    );
+
+    const actual = { ...observe(turn), caseUsage: combineUsage(measured) };
 
     const timing = measureTurnTiming(turn, startedAt);
 
-    if (canScoreTurn(turn, actual)) {
-      return evaluationResultSchema.parse({
-        ...base,
-        ...timing,
-        actual,
-        outcome: "observed",
-        ...score(expected, actual),
-      });
-    }
+    if (canScoreTurn(turn, actual)) return scoredResult(base, actual, timing);
 
     detail = diagnostic ?? "The model or catalog operation did not complete.";
 
@@ -132,12 +165,8 @@ export async function executeCase(
   } catch {
     return executionErrorResult(
       base,
-      { decision: null, groups: [], metrics: null },
-      {
-        recordedAt: new Date().toISOString(),
-        firstOutputMs: null,
-        durationMs: Date.now() - startedAt,
-      },
+      { decision: null, groups: [], metrics: null, caseUsage: combineUsage(measured) },
+      measureTurnTiming({ metrics: null }, startedAt),
       detail,
     );
   }
@@ -158,6 +187,7 @@ export async function runSuite(factory: Factory, profile: Profile, examples: Eva
     }
 
     await saveResults(results);
+    console.log("Run usage: " + evaluationUsage(results));
     console.log(`Saved ${profile} run ${runId} at http://127.0.0.1:3002/?run=${runId}`);
 
     if (results.some((result) => !evaluationPassed(result))) process.exitCode = 1;

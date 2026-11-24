@@ -1,3 +1,5 @@
+import type { UsageObserver } from "@bazak/conversation/domain/usage";
+import { recordInput, type PromptObserver } from "#application/step-input";
 import { bounded } from "#application/deadline";
 import { groundedKeywords } from "#application/model-decision";
 import { z } from "zod";
@@ -52,7 +54,12 @@ export interface PlannerInput {
 }
 
 export interface QueryPlanner {
-  plan(groups: PlannerInput[], signal: AbortSignal): Promise<PlannerProposal[]>;
+  plan(
+    groups: PlannerInput[],
+    signal: AbortSignal,
+    observe?: PromptObserver,
+    usage?: UsageObserver,
+  ): Promise<PlannerProposal[]>;
 }
 
 export type SearchGroup = Extract<IntentDecision, { kind: "discover" }>["searches"][number];
@@ -177,15 +184,26 @@ export async function planGroups(
   metrics: AttemptMetrics,
   signal: AbortSignal,
 ): Promise<Map<number, GroupPlan>> {
+  recordInput(metrics, "planner", "Requested groups", groups);
   const plans = new Map<number, GroupPlan>();
   const inputs = await collectPlannerInputs(groups, id, repo, metrics, signal);
 
   if (!inputs.length || signal.aborted) return plans;
   metrics.plannerCalls++;
+  recordInput(metrics, "planner", "Planner model input", inputs);
 
   try {
     const proposals = plannerProposalsSchema.parse(
-      await bounded(() => planner.plan(inputs, signal), signal),
+      await bounded(
+        () =>
+          planner.plan(
+            inputs,
+            signal,
+            (prompt) => recordInput(metrics, "planner", "Provider prompt", prompt),
+            (usage) => metrics.usage?.push({ stage: "planner", ...usage }),
+          ),
+        signal,
+      ),
     );
 
     validateProposalIndices(proposals, inputs);

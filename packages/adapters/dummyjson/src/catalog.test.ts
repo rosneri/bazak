@@ -5,12 +5,14 @@ import { approvedCatalogThumbnail } from "@bazak/dummyjson/thumbnail";
 
 test("maps a keyword search page into catalog snapshots", async () => {
   const signal = new AbortController().signal;
+  const observed: string[] = [];
 
   const catalog = createDummyJsonCatalog(async (url, options) => {
     assert.equal(
       String(url),
       "https://dummyjson.com/products/search?q=milk+%26+honey&skip=1&limit=1",
     );
+    assert.deepEqual(observed, [String(url)]);
     assert.equal(options?.signal, signal);
     assert.equal(options?.redirect, "error");
 
@@ -34,6 +36,7 @@ test("maps a keyword search page into catalog snapshots", async () => {
   const page = await catalog.findPage(
     { source: { kind: "search", keywords: "milk & honey" }, offset: 1, limit: 1 },
     signal,
+    (url) => observed.push(url),
   );
 
   assert.equal(page.offset, 1);

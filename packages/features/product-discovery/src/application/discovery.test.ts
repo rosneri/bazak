@@ -53,6 +53,21 @@ test("under $50 excludes the boundary and sold-out scents while up to $50 includ
   );
 });
 
+test("a minimum is inclusive by default and can be combined with an exclusive ceiling", async () => {
+  const products = [99.99, 100, 100.01, 101].map((price, i) => perfume(i, price));
+  const discovery = service(async () => ({ products, total: products.length, offset: 0 }));
+
+  const result = await discovery.lookup({
+    label: "Fragrances",
+    criteria: { category: "fragrances", minPrice: 100, maxPrice: 101, priceBoundary: "exclusive" },
+  });
+
+  assert.deepEqual(
+    result.products.map((p) => p.price),
+    [100, 100.01],
+  );
+});
+
 test("a repeated product keeps its first price and marks the observed pages partial", async () => {
   const first = Array.from({ length: 20 }, (_, i) => perfume(i + 1, 20));
 

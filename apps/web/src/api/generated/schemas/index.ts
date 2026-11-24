@@ -59,6 +59,7 @@ export * from "./turnDoneEvent.zod.ts";
 export * from "./turnErrorCode.zod.ts";
 export * from "./turnErrorEvent.zod.ts";
 export * from "./turnEvent.zod.ts";
+export * from "./turnLookupEvent.zod.ts";
 export * from "./turnProductsEvent.zod.ts";
 export * from "./turnState.zod.ts";
 export * from "./turnStatusEvent.zod.ts";

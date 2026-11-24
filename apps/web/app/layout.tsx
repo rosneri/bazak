@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import { ShopperQueryProvider } from "@/src/client/query-provider";
 import "@bazak/ui/globals.css";
 import "./shop.css";
+import "./chat-stream.css";
+import "./turn-diagnostics.css";
 
 export const metadata: Metadata = {
   title: "Bazak · Shopping desk",

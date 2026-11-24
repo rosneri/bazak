@@ -15,6 +15,7 @@ import {
 } from "@bazak/conversation/application/repository";
 import { createDiscoveryService } from "@bazak/product-discovery/application/discovery";
 import type { CatalogQuery, ProductCatalog } from "@bazak/product-discovery/application/catalog";
+import { catalog, scents } from "#testing/catalog";
 import { testRepository } from "#testing/repository";
 
 const fragranceSearch = {
@@ -24,27 +25,6 @@ const fragranceSearch = {
 } as const;
 
 const search: ModelDecision = { kind: "discover", searches: [fragranceSearch] };
-
-const scents = [38, 29, 14].map((price, i) => ({
-  id: String(i + 1),
-  price,
-  title: "Perfume " + (i + 1),
-  description: "Fresh perfume",
-  category: "fragrances",
-  stock: 3,
-  observedAt: "2026-11-23T12:00:00.000Z",
-}));
-
-const catalog: ProductCatalog = {
-  async findPage() {
-    return { total: scents.length, offset: 0, products: scents };
-  },
-  async findById(id) {
-    const item = scents.find((p) => p.id === id);
-
-    return item ? { ...item, price: 32, stock: 0 } : null;
-  },
-};
 
 interface Options {
   decide?: ConversationModel["decide"];
@@ -92,6 +72,43 @@ async function drain(stream: Promise<AsyncIterable<ConversationEvent>>) {
   return events;
 }
 
+test("a price-only follow-up replaces the ceiling and retains the category and count", async () => {
+  const products = [49.99, 100, 100.01, 120, 130].map((price, i) => ({
+    ...scents[0],
+    id: String(i),
+    price,
+  }));
+
+  const chat = setup({
+    products: {
+      ...catalog,
+      async findPage() {
+        return { offset: 0, total: products.length, products };
+      },
+    },
+    async decide({ history }) {
+      if (!history.length) return search;
+      assert.deepEqual(history.at(-1)?.groups[0].criteria, fragranceSearch.criteria);
+
+      return { kind: "replace-price", side: "minimum", amount: 100, boundary: "exclusive" };
+    },
+  });
+
+  await drain(chat.send("Two fragrances under $50"));
+  const events = await drain(chat.send("now above 100$"));
+  const result = events.find((event) => event.type === "products")?.part.group;
+  assert.deepEqual(result?.criteria, {
+    category: "fragrances",
+    count: 2,
+    minPrice: 100,
+    minPriceBoundary: "exclusive",
+  });
+  assert.deepEqual(
+    result?.products.map((product) => product.price),
+    [100.01, 120],
+  );
+});
+
 test("a shopper can compare cheaper scents, replay the original prices and refresh a sold-out card", async () => {
   const chat = setup({
     async decide({ text }) {
@@ -117,7 +134,10 @@ test("a shopper can compare cheaper scents, replay the original prices and refre
     [14],
   );
   assert.equal(detail.find((e) => e.type === "products")?.part.group.products[0]?.stock, 0);
-  assert.equal(first.find((e) => e.type === "text-delta")?.text, SAFE_FRAMING[0]);
+  assert.equal(
+    first.flatMap((e) => (e.type === "text-delta" ? [e.text] : [])).join(""),
+    SAFE_FRAMING[0],
+  );
   const replay = await drain(chat.send("Two fragrances under $50", turnId));
   assert.deepEqual(
     replay.map((e) => e.type),
@@ -349,7 +369,7 @@ test("a rejected completion produces a recoverable error after the preview", asy
   );
 });
 
-test("only approved sentences stream as they finish and replay as one passage", async () => {
+test("approved sentence prefixes stream as they arrive and replay as one passage", async () => {
   const chat = setup({
     async *reply() {
       yield "Here’s what ";
@@ -362,7 +382,7 @@ test("only approved sentences stream as they finish and replay as one passage", 
   const stream = await drain(chat.send("Two fragrances", turnId));
   assert.deepEqual(
     stream.flatMap((event) => (event.type === "text-delta" ? [event.text] : [])),
-    [SAFE_FRAMING[0], " " + SAFE_FRAMING[1]],
+    ["Here’s what", " I found.", " Would you", " like to narrow the search?"],
   );
   const replay = await drain(chat.send("Two fragrances", turnId));
   const done = replay.find((event) => event.type === "done");

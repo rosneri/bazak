@@ -36,7 +36,17 @@ export interface CatalogPage {
   readonly offset: number;
 }
 
+export type ProviderRequestObserver = (url: string) => void;
+
 export interface ProductCatalog {
-  findById(id: string, signal?: AbortSignal): Promise<ProductSnapshot | null>;
-  findPage(query: CatalogQuery, signal?: AbortSignal): Promise<CatalogPage>;
+  findById(
+    id: string,
+    signal?: AbortSignal,
+    onRequest?: ProviderRequestObserver,
+  ): Promise<ProductSnapshot | null>;
+  findPage(
+    query: CatalogQuery,
+    signal?: AbortSignal,
+    onRequest?: ProviderRequestObserver,
+  ): Promise<CatalogPage>;
 }

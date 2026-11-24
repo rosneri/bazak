@@ -3,6 +3,7 @@ import {
   catalogQuerySchema,
   type CatalogQuery,
   type ProductCatalog,
+  type ProviderRequestObserver,
 } from "@bazak/product-discovery/application/catalog";
 import type { DiscoveryCriteria } from "@bazak/product-discovery/domain/discovery";
 import { matchesDiscoveryCriteria } from "#domain/product-ranking";
@@ -33,7 +34,15 @@ export class CatalogLookup {
   private readonly signal?: AbortSignal;
   private readonly onQuery?: QueryObserver;
 
-  constructor(catalog: ProductCatalog, signal?: AbortSignal, onQuery?: QueryObserver) {
+  private readonly onRequest?: ProviderRequestObserver;
+
+  constructor(
+    catalog: ProductCatalog,
+    signal?: AbortSignal,
+    onQuery?: QueryObserver,
+    onRequest?: ProviderRequestObserver,
+  ) {
+    this.onRequest = onRequest;
     this.catalog = catalog;
     this.signal = signal;
     this.onQuery = onQuery;
@@ -44,7 +53,7 @@ export class CatalogLookup {
     const query = catalogQuerySchema.parse({ source, offset, limit: PAGE_SIZE });
     this.requests++;
     this.onQuery?.(query);
-    const page = pageSchema.parse(await this.catalog.findPage(query, this.signal));
+    const page = pageSchema.parse(await this.catalog.findPage(query, this.signal, this.onRequest));
     this.signal?.throwIfAborted();
 
     return page;

@@ -8,6 +8,7 @@
   },
   "exports": {
     "./application/chat": "./src/application/chat.ts",
+    "./domain/usage": "./src/domain/usage.ts",
     "./domain/chat": "./src/domain/chat.ts",
     "./domain/turn": "./src/domain/turn.ts",
     "./application/query-planner": "./src/application/query-planner.ts",

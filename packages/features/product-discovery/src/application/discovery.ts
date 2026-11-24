@@ -1,5 +1,9 @@
 import { z } from "zod";
-import type { CatalogQuery, ProductCatalog } from "@bazak/product-discovery/application/catalog";
+import type {
+  CatalogQuery,
+  ProductCatalog,
+  ProviderRequestObserver,
+} from "@bazak/product-discovery/application/catalog";
 import {
   discoveryCriteriaSchema,
   searchKeywordsSchema,
@@ -94,6 +98,7 @@ async function lookupProducts(
   input: LookupRequest,
   signal?: AbortSignal,
   onQuery?: QueryObserver,
+  onRequest?: ProviderRequestObserver,
 ): Promise<LookupResult> {
   const request = requestSchema.parse(input);
   const { criteria, label, hint } = request;
@@ -102,7 +107,7 @@ async function lookupProducts(
     ? { kind: "category", category: criteria.category }
     : { kind: "search", keywords: searchKeywordsSchema.parse(criteria.keywords) };
 
-  const lookup = new CatalogLookup(catalog, signal, onQuery);
+  const lookup = new CatalogLookup(catalog, signal, onQuery, onRequest);
 
   let complete = false;
 
@@ -130,13 +135,18 @@ async function lookupProducts(
 }
 
 export function createDiscoveryService(catalog: ProductCatalog) {
-  function lookup(input: LookupRequest, signal?: AbortSignal, onQuery?: QueryObserver) {
-    return lookupProducts(catalog, input, signal, onQuery);
+  function lookup(
+    input: LookupRequest,
+    signal?: AbortSignal,
+    onQuery?: QueryObserver,
+    onRequest?: ProviderRequestObserver,
+  ) {
+    return lookupProducts(catalog, input, signal, onQuery, onRequest);
   }
 
-  async function detail(id: string, signal?: AbortSignal) {
+  async function detail(id: string, signal?: AbortSignal, onRequest?: ProviderRequestObserver) {
     signal?.throwIfAborted();
-    const product = await catalog.findById(id, signal);
+    const product = await catalog.findById(id, signal, onRequest);
     signal?.throwIfAborted();
 
     if (!product) return null;

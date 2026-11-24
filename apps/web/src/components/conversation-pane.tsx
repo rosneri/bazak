@@ -1,3 +1,6 @@
+import { TranscriptActions } from "./transcript-actions";
+import { ProductSkeleton } from "./product-skeleton";
+import { TurnDiagnostics } from "./turn-diagnostics";
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { Button } from "@bazak/ui/components/button";
@@ -35,6 +38,7 @@ function TranscriptTurn({
           </Button>
         </div>
       )}
+      <TurnDiagnostics turn={turn} />
     </article>
   );
 }
@@ -46,11 +50,14 @@ function Transcript({ session }: { session: ShoppingSession }) {
   return (
     <>
       {!empty && (
-        <h1 className="conversation-heading">
-          {history?.conversation.title === "New chat"
-            ? "Shopping chat"
-            : (history?.conversation.title ?? "Shopping chat")}
-        </h1>
+        <header className="conversation-header">
+          <h1 className="conversation-heading">
+            {history?.conversation.title === "New chat"
+              ? "Shopping chat"
+              : (history?.conversation.title ?? "Shopping chat")}
+          </h1>
+          {history && <TranscriptActions history={history} busy={busy} />}
+        </header>
       )}
       {history?.turns.map((turn) =>
         preview?.turnId === turn.turnId && !preview.unsaved ? null : (
@@ -63,6 +70,7 @@ function Transcript({ session }: { session: ShoppingSession }) {
             <p className="user-message">{preview.text}</p>
           )}
           <AssistantParts parts={preview.parts} />
+          {preview.pendingLabel && <ProductSkeleton label={preview.pendingLabel} />}
           <p role="status" className="status">
             {preview.unsaved ? "Unsaved preview" : "Reply in progress…"}
           </p>
