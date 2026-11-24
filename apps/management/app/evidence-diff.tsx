@@ -111,7 +111,16 @@ function SplitDiff({
   observed: EvidenceDocument;
   title: string;
 }) {
-  const rows = compareLines(expected, observed);
+  let expectedLine = 0;
+  let observedLine = 0;
+
+  const rows = compareLines(expected, observed).map((row) => {
+    if (row.expected !== undefined) expectedLine++;
+
+    if (row.observed !== undefined) observedLine++;
+
+    return { ...row, key: expectedLine + "/" + observedLine };
+  });
 
   return (
     <div className="diff-scroll" role="region" aria-label={title} tabIndex={0}>
@@ -123,9 +132,8 @@ function SplitDiff({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, index) => (
-            // oxlint-disable-next-line react/no-array-index-key -- Line positions identify rows in this immutable, server-rendered diff.
-            <tr key={index}>
+          {rows.map((row) => (
+            <tr key={row.key}>
               <DiffCell value={row.expected} sign={row.changed ? "−" : undefined} />
               <DiffCell value={row.observed} sign={row.changed ? "+" : undefined} />
             </tr>

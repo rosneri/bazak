@@ -22,8 +22,12 @@ async function recordEvaluationReports() {
   return (await recordSuite(modelServices, "model", searchCases)).runId;
 }
 
+// This single-user local dashboard coalesces simultaneous requests into one paid evaluation run.
+// react-doctor-disable-next-line react-doctor/server-no-mutable-module-state
 let activeRun: Promise<string> | undefined;
 
+// The local app authorizes this action by checking its loopback host and exact browser origin.
+// react-doctor-disable-next-line react-doctor/server-auth-actions
 export async function runEvaluations() {
   const request = await headers();
   const origin = getLoopbackOrigin(request, process.env.PORT ?? "3002");
