@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -9,6 +9,12 @@ import {
   type Turn,
 } from "@bazak/conversation/domain/turn";
 import { useGetConversation, useListConversations } from "../api/generated/hooks";
+import {
+  acknowledgeSubmission,
+  moveSubmissionToThread,
+  rememberSubmission,
+  usePendingSubmission,
+} from "./pending-submission";
 import { useSessionAction, useConversationRequests } from "./chat-actions";
 import {
   reconcileConversation,
@@ -81,7 +87,8 @@ function useConversationState(initialId: string | null) {
   const requests = useConversationRequests(actions.mutationOptions);
   const recovery = useAttemptRecovery(id, history, actions.working, setNotice);
   const busy = actions.working || recovery.recovering;
-  const loading = id ? historyQuery.isPending : listQuery.isPending;
+  const pending = usePendingSubmission(initialId, setDraft, setNotice);
+  const loading = !pending.checked || (id ? historyQuery.isPending : listQuery.isPending);
   const inaccessible = id !== null && historyQuery.isError && !history;
 
   return {
@@ -93,6 +100,7 @@ function useConversationState(initialId: string | null) {
     setNotice,
     preview,
     setPreview,
+    pending,
     listQuery,
     historyQuery,
     history,
@@ -127,6 +135,7 @@ async function streamRequestedTurn(
   turn: RequestedTurn,
   acceptDraft: () => void,
   onCreate?: (id: string) => void,
+  requestedThread?: string,
 ) {
   const controller = state.actions.beginAction(state.recovery.recovering);
 
@@ -140,7 +149,8 @@ async function streamRequestedTurn(
 
   try {
     if (!threadId) {
-      threadId = await createChat(signal);
+      threadId = await createChat(signal, requestedThread);
+      moveSubmissionToThread({ ...turn, threadId });
       onCreate?.(threadId);
       state.setId(threadId);
     }
@@ -160,35 +170,25 @@ async function streamRequestedTurn(
 }
 
 function useTurnSubmission(state: SessionState, onCreate?: (id: string) => void) {
-  const pendingSend = useRef<{ id: string; text: string } | null>(null);
-
-  const {
-    draft,
-    setDraft,
-    loading,
-    busy,
-    inaccessible,
-    actions: { action },
-  } = state;
-
   function send() {
-    if (loading || busy || inaccessible || action.current || !draft.trim()) return;
+    const { draft, setDraft, loading, busy, inaccessible } = state;
 
-    if (pendingSend.current?.text !== draft)
-      pendingSend.current = { id: crypto.randomUUID(), text: draft };
+    if (loading || busy || inaccessible || state.actions.action.current || !draft.trim()) return;
 
-    function acceptDraft() {
-      if (!pendingSend.current) return;
-      pendingSend.current = null;
-      setDraft((current) => (current === draft ? "" : current));
+    try {
+      const pending = rememberSubmission(state.id, draft);
+
+      function acceptDraft() {
+        acknowledgeSubmission(pending.threadId, pending.turnId);
+        setDraft((current) => (current === draft ? "" : current));
+      }
+
+      return streamRequestedTurn(state, pending, acceptDraft, onCreate, pending.threadId);
+    } catch {
+      state.setNotice(
+        "Couldn’t save this pending message in the tab. Check browser storage and try again.",
+      );
     }
-
-    return streamRequestedTurn(
-      state,
-      { turnId: pendingSend.current.id, text: draft },
-      acceptDraft,
-      onCreate,
-    );
   }
 
   function retry(turn: Turn) {
@@ -212,6 +212,8 @@ function reloadConversation(state: SessionState) {
   if (busy) return;
   setNotice("");
   setPausedAttempt(null);
+
+  if (!state.pending.checked) state.pending.recheck();
   void listQuery.refetch();
 
   if (id) void historyQuery.refetch();

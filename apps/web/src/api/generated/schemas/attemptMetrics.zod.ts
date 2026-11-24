@@ -27,7 +27,7 @@ export const attemptMetricsUsageItemTotalMin = 0;
 
 export const attemptMetricsUsageItemEstimatedUsdMin = 0;
 
-export const attemptMetricsProviderUrlsMax = 9;
+export const attemptMetricsProviderUrlsMax = 18;
 
 export const attemptMetricsModelProposalMax = 8192;
 

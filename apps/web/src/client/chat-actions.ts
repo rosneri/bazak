@@ -68,8 +68,8 @@ export function useConversationRequests(
       : retryTurn({ id, turnId, data: { expectedAttempt: attempt } });
   }
 
-  async function createChat(signal: AbortSignal) {
-    pendingCreate.current ??= crypto.randomUUID();
+  async function createChat(signal: AbortSignal, requestedId?: string) {
+    pendingCreate.current = requestedId ?? pendingCreate.current ?? crypto.randomUUID();
     const { conversation } = await create({ data: { id: pendingCreate.current } });
     signal.throwIfAborted();
     pendingCreate.current = null;

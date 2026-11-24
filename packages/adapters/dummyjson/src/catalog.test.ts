@@ -272,3 +272,72 @@ test("catalog JSON decoding preserves a UTF-8 character split across chunks", as
 
   assert.equal((await catalog.findById("7"))?.title, "Café");
 });
+
+test("a throttled page is retried once at the same URL", async () => {
+  const urls: string[] = [];
+
+  const catalog = createDummyJsonCatalog(async (url) => {
+    urls.push(String(url));
+
+    return urls.length === 1
+      ? new Response(null, { status: 429, headers: { "Retry-After": "0" } })
+      : Response.json({ products: [], total: 0, skip: 0 });
+  });
+
+  const page = await catalog.findPage({
+    source: { kind: "search", keywords: "lamp" },
+    offset: 0,
+    limit: 1,
+  });
+
+  assert.deepEqual(page.products, []);
+  assert.equal(urls.length, 2);
+  assert.equal(urls[0], urls[1]);
+});
+
+test("detail retries a lost connection once; the second failure ends the read", async () => {
+  let calls = 0;
+
+  const catalog = createDummyJsonCatalog(async () => {
+    calls++;
+    throw new TypeError("fetch failed");
+  });
+
+  await assert.rejects(catalog.findById("7"), /fetch failed/);
+  assert.equal(calls, 2);
+});
+
+for (const response of [
+  new Response(null, { status: 404 }),
+  Response.json({ id: 7 }),
+  new Response(null, { status: 503, headers: { "Retry-After": "60" } }),
+]) {
+  test("does not retry a permanent error or excessive delay: HTTP " + response.status, async () => {
+    let calls = 0;
+
+    const catalog = createDummyJsonCatalog(async () => {
+      calls++;
+
+      return response;
+    });
+
+    if (response.status === 404) assert.equal(await catalog.findById("7"), null);
+    else await assert.rejects(catalog.findById("7"));
+    assert.equal(calls, 1);
+  });
+}
+
+test("cancellation during Retry-After prevents a second dispatch", async () => {
+  const controller = new AbortController();
+  let calls = 0;
+
+  const catalog = createDummyJsonCatalog(async () => {
+    calls++;
+    setTimeout(() => controller.abort(), 5);
+
+    return new Response(null, { status: 503, headers: { "Retry-After": "1" } });
+  });
+
+  await assert.rejects(catalog.findById("7", controller.signal));
+  assert.equal(calls, 1);
+});

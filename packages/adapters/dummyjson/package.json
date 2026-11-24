@@ -2,6 +2,9 @@
   "name": "@bazak/dummyjson",
   "private": true,
   "type": "module",
+  "imports": {
+    "#read-retry": "./src/read-retry.ts"
+  },
   "exports": {
     ".": "./src/catalog.ts",
     "./thumbnail": "./src/thumbnail.ts"

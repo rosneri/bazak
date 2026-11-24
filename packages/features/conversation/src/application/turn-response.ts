@@ -1,3 +1,4 @@
+import { catalogReadSignal } from "@bazak/product-discovery/application/catalog";
 import { recordInput } from "#application/step-input";
 import { bounded, stageSignal } from "#application/deadline";
 import type { ConversationDependencies, ConversationEvent } from "#application/chat";
@@ -68,7 +69,6 @@ async function resolveSearchGroup(
 function recordProductGroup(response: TurnResponse, result: ResultGroup): ConversationEvent {
   const part = { type: "products", version: 1, group: result } as const;
   response.parts.push(part);
-  response.markVisible();
 
   return { type: "products", turnId: response.turnId, part };
 }
@@ -76,7 +76,7 @@ function recordProductGroup(response: TurnResponse, result: ResultGroup): Conver
 async function* streamSearchGroups(
   response: TurnResponse,
   groups: SearchGroup[],
-): AsyncGenerator<ConversationEvent> {
+): AsyncGenerator<ConversationEvent, ConversationEvent> {
   const { deps, signal, id, metrics } = response;
 
   const plans = await planGroups(
@@ -88,7 +88,7 @@ async function* streamSearchGroups(
     stageSignal(signal, 8_000),
   );
 
-  const retrieval = stageSignal(signal, 25_000);
+  const retrieval = catalogReadSignal(signal);
 
   for (const [index, group] of groups.entries()) {
     signal.throwIfAborted();
@@ -99,8 +99,14 @@ async function* streamSearchGroups(
     // Deliver each group before requesting the next.
     // oxlint-disable-next-line no-await-in-loop
     const result = await resolveSearchGroup(group, plans.get(index), response, retrieval);
-    yield recordProductGroup(response, result);
+    const event = recordProductGroup(response, result);
+
+    if (index === groups.length - 1) return event;
+    response.markVisible();
+    yield event;
   }
+
+  throw new Error("A discovery decision requires a group.");
 }
 
 async function loadProductDetail(response: TurnResponse, productId: string): Promise<ResultGroup> {
@@ -110,7 +116,7 @@ async function loadProductDetail(response: TurnResponse, productId: string): Pro
     deps: { discovery },
   } = response;
 
-  const retrieval = stageSignal(signal, 25_000);
+  const retrieval = catalogReadSignal(signal);
   metrics.catalogCalls++;
   recordInput(metrics, "catalog", "Detail arguments", { productId });
 
@@ -141,19 +147,18 @@ async function loadProductDetail(response: TurnResponse, productId: string): Pro
 export async function* streamTurnResponse(
   response: TurnResponse,
   decision: IntentDecision,
-): AsyncGenerator<ConversationEvent> {
+): AsyncGenerator<ConversationEvent, ConversationEvent> {
   if (decision.kind === "clarify" || decision.kind === "off-catalog") {
     const text = decision.kind === "clarify" ? decision.question : scopeGuidance;
     response.parts.push({ type: "text", text });
-    response.markVisible();
-    yield { type: "text-delta", turnId: response.turnId, text };
 
-    return;
+    return { type: "text-delta", turnId: response.turnId, text };
   }
 
-  if (decision.kind === "discover") yield* streamSearchGroups(response, decision.searches);
+  if (decision.kind === "discover") return yield* streamSearchGroups(response, decision.searches);
   else if (decision.kind === "detail") {
     yield { type: "lookup", turnId: response.turnId, label: "Product details" };
-    yield recordProductGroup(response, await loadProductDetail(response, decision.productId));
+
+    return recordProductGroup(response, await loadProductDetail(response, decision.productId));
   } else throw new Error("Unresolved reference.");
 }

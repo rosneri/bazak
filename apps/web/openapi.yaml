@@ -925,7 +925,7 @@ components:
                 description: JSON snapshot captured when the operation was invoked.
         providerUrls:
           type: array
-          maxItems: 9
+          maxItems: 18
           description: Catalog HTTP GET attempts in dispatch order, when recorded.
           items:
             type: string
