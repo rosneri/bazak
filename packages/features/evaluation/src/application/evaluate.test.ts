@@ -124,3 +124,49 @@ test("an ascending sort, expected planner call and actual hinted query are score
     false,
   );
 });
+
+test("a wrong raw proposal fails the model grade even when the shopper result is correct", () => {
+  const proposal = {
+    kind: "discover",
+    searches: [
+      { kind: "search", criteria: { category: "fragrances", count: 2 }, readiness: "ready" },
+    ],
+  } as const;
+
+  const labeled = { ...expected, proposal: { ...proposal, searches: [...proposal.searches] } };
+  const observed = { ...actual, metrics: { ...metrics, modelProposal: JSON.stringify(proposal) } };
+  assert.equal(score(labeled, observed, "model").intentMatch, true);
+
+  const wrong = { ...actual, metrics: { ...metrics, modelProposal: '{"kind":"off-catalog"}' } };
+  assert.deepEqual(score(labeled, wrong, "model"), {
+    intentMatch: false,
+    constraintsSatisfied: true,
+    correctAbstention: null,
+  });
+});
+
+test("an empty response from the wrong category cannot pass a category-routing case", () => {
+  const empty = { ...group, kind: "empty", products: [] } satisfies ResultGroup;
+  const labeled = fixtureCases[2];
+
+  for (const criteria of [null, { category: "beauty" as const }, { keywords: "something" }]) {
+    const observation = { ...actual, groups: [{ ...empty, criteria }] };
+    assert.equal(score(labeled, observation, "harness").constraintsSatisfied, false);
+  }
+});
+
+test("a follow-up showing the wrong earlier product fails even if routing was correct", () => {
+  const detail: EvaluationCase = {
+    ...expected,
+    intent: "detail",
+    groups: [{ category: "fragrances", count: 1, ids: ["f-cedar"] }],
+  };
+
+  const observed: Observation = {
+    ...actual,
+    decision: { kind: "detail", productId: "f-rose" },
+    groups: [{ ...group, criteria: null, products: [product] }],
+  };
+
+  assert.equal(score(detail, observed, "harness").constraintsSatisfied, false);
+});

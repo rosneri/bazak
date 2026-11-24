@@ -8,7 +8,7 @@
 
 ## Invariants
 
-Every labeled case runs in its own scope and loads the committed turn for scoring. A result batch has one profile per run. The test harness requires a local Compose host, allocates a unique database and drops it on normal cleanup.
+Standalone cases run in isolated scopes. Numbered turns in a multi-turn scenario reuse one thread. Each case reloads the committed turn for scoring. A result batch has one profile per run. The test harness requires a local Compose host, allocates a unique database and drops it on normal cleanup.
 
 ## Side effects
 

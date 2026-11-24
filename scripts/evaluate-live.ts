@@ -2,4 +2,4 @@ import { createProductionServices } from "../apps/web/src/server/services.produc
 import { liveCases } from "../packages/features/evaluation/src/domain/cases.ts";
 import { runSuite } from "./evaluate-suite.ts";
 
-await runSuite(createProductionServices, "production", liveCases);
+await runSuite((repo) => createProductionServices(repo), "production", liveCases);

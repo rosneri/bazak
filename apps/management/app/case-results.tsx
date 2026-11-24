@@ -5,7 +5,7 @@ import {
   metricCount,
   type EvaluationResult,
 } from "@bazak/evaluations";
-import { metrics, formatDuration, formatMetricOutcome } from "./evaluation-metrics";
+import { metricsFor, formatDuration, formatMetricOutcome } from "./evaluation-metrics";
 
 function caseOutcomeLabel(row: EvaluationResult) {
   if (row.outcome === "execution-error") return "Execution error";
@@ -20,7 +20,7 @@ export function RunScores({ rows }: { rows: EvaluationResult[] }) {
         <dt>Run usage (including setup)</dt>
         <dd>{evaluationUsage(rows)}</dd>
       </div>
-      {metrics.map((metric) => {
+      {metricsFor(rows[0].profile).map((metric) => {
         const { passed, scored } = metricCount(rows, metric.key);
 
         return (
@@ -52,7 +52,7 @@ export function CaseResultsTable({
             <th scope="col">Case</th>
             <th scope="col">Outcome</th>
             <th scope="col">Tokens and estimated cost</th>
-            {metrics.map((metric) => (
+            {metricsFor(rows[0].profile).map((metric) => (
               <th key={metric.key} scope="col">
                 {metric.label}
               </th>
@@ -83,7 +83,7 @@ function CaseResultRow({ row, selected }: { row: EvaluationResult; selected: boo
       </th>
       <td className={evaluationPassed(row) ? "" : "attention"}>{caseOutcomeLabel(row)}</td>
       <td>{evaluationUsage([row])}</td>
-      {metrics.map((metric) => (
+      {metricsFor(row.profile).map((metric) => (
         <td key={metric.key} className={row[metric.key] === null ? "muted" : ""}>
           {formatMetricOutcome(row[metric.key])}
         </td>
