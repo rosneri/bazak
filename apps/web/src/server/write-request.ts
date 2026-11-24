@@ -30,9 +30,9 @@ export function verifyWriteOrigin(headers: Headers, targetOrigin: string) {
     throw new RequestError("forbidden_origin");
 }
 
-export async function readJsonBody(request: Request) {
-  const contentType = request.headers.get("Content-Type");
-  const encoding = request.headers.get("Content-Encoding");
+function validateJsonHeaders(headers: Headers) {
+  const contentType = headers.get("Content-Type");
+  const encoding = headers.get("Content-Encoding");
 
   if (
     !contentType ||
@@ -41,7 +41,7 @@ export async function readJsonBody(request: Request) {
   )
     throw new RequestError("unsupported_media_type");
 
-  const contentLength = request.headers.get("Content-Length");
+  const contentLength = headers.get("Content-Length");
 
   if (contentLength !== null && !/^\d+$/.test(contentLength))
     throw new RequestError("invalid_input");
@@ -51,10 +51,45 @@ export async function readJsonBody(request: Request) {
   if (declaredBytes !== null && declaredBytes > maxBodyBytes)
     throw new RequestError("payload_too_large");
 
+  return declaredBytes;
+}
+
+async function decodeLimitedBody(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  signal: AbortSignal,
+  declaredBytes: number | null,
+) {
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  let bytes = 0;
+  let text = "";
+
+  signal.throwIfAborted();
+
+  while (true) {
+    // oxlint-disable-next-line no-await-in-loop -- Count each chunk before requesting another.
+    const { done, value } = await reader.read();
+    signal.throwIfAborted();
+
+    if (done) break;
+
+    bytes += value.byteLength;
+
+    if (bytes > maxBodyBytes) throw new RequestError("payload_too_large");
+
+    text += decoder.decode(value, { stream: true });
+  }
+
+  if (declaredBytes !== null && declaredBytes !== bytes) throw new RequestError("invalid_input");
+
+  return text + decoder.decode();
+}
+
+export async function readJsonBody(request: Request) {
+  const declaredBytes = validateJsonHeaders(request.headers);
+
   if (!request.body) throw new RequestError("invalid_input");
 
   const reader = request.body.getReader();
-  const decoder = new TextDecoder("utf-8", { fatal: true });
   const deadline = new AbortController();
   const signal = AbortSignal.any([request.signal, deadline.signal]);
 
@@ -63,9 +98,6 @@ export async function readJsonBody(request: Request) {
     bodyTimeoutMs,
   );
 
-  let bytes = 0;
-  let text = "";
-
   function cancelRead() {
     void reader.cancel().catch(() => {});
   }
@@ -73,25 +105,7 @@ export async function readJsonBody(request: Request) {
   signal.addEventListener("abort", cancelRead, { once: true });
 
   try {
-    signal.throwIfAborted();
-
-    while (true) {
-      // oxlint-disable-next-line no-await-in-loop -- Count each chunk before requesting another.
-      const { done, value } = await reader.read();
-      signal.throwIfAborted();
-
-      if (done) break;
-
-      bytes += value.byteLength;
-
-      if (bytes > maxBodyBytes) throw new RequestError("payload_too_large");
-
-      text += decoder.decode(value, { stream: true });
-    }
-
-    if (declaredBytes !== null && declaredBytes !== bytes) throw new RequestError("invalid_input");
-
-    return text + decoder.decode();
+    return await decodeLimitedBody(reader, signal, declaredBytes);
   } catch (cause) {
     cancelRead();
     signal.throwIfAborted();

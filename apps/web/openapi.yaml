@@ -12,6 +12,7 @@ paths:
   /api/conversations:
     get:
       operationId: listConversations
+      tags: [conversations]
       summary: List saved shopper conversations
       responses:
         "200":
@@ -31,6 +32,7 @@ paths:
           $ref: "#/components/responses/StorageUnavailable"
     post:
       operationId: createConversation
+      tags: [conversations]
       summary: Create or recover a conversation using a client-generated ID
       requestBody:
         required: true
@@ -78,6 +80,7 @@ paths:
       - $ref: "#/components/parameters/ConversationId"
     get:
       operationId: getConversation
+      tags: [history]
       summary: Load a conversation and its ordered saved turns
       responses:
         "200":
@@ -104,6 +107,7 @@ paths:
       - $ref: "#/components/parameters/ConversationId"
     post:
       operationId: sendTurn
+      tags: [turns]
       summary: Submit a turn and stream its attempt
       description: |
         A new turn starts attempt 1. Resubmitting the same turn ID with the same text reports
@@ -149,6 +153,7 @@ paths:
       - $ref: "#/components/parameters/TurnId"
     post:
       operationId: retryTurn
+      tags: [turns]
       summary: Retry the generation of a failed or interrupted turn
       description: |
         A failed or interrupted turn starts its next attempt if the supplied generation

@@ -93,22 +93,27 @@ async function readCatalogJson<Schema extends z.ZodType>(
   return schema.parse(JSON.parse(json + decoder.decode()));
 }
 
+function catalogPageUrl(input: z.input<typeof querySchema>) {
+  const { source, offset, limit } = querySchema.parse(input);
+  const url = new URL("https://dummyjson.com/products");
+
+  if (source.kind === "search") {
+    url.pathname += "/search";
+    url.searchParams.set("q", source.keywords);
+  } else {
+    url.pathname += `/category/${source.category}`;
+  }
+
+  url.searchParams.set("skip", String(offset));
+  url.searchParams.set("limit", String(limit));
+
+  return url;
+}
+
 export function createDummyJsonCatalog(fetchCatalog: typeof fetch): ProductCatalog {
   return {
     async findPage(input, signal) {
-      const { source, offset, limit } = querySchema.parse(input);
-      const url = new URL("https://dummyjson.com/products");
-
-      if (source.kind === "search") {
-        url.pathname += "/search";
-        url.searchParams.set("q", source.keywords);
-      } else {
-        url.pathname += `/category/${source.category}`;
-      }
-
-      url.searchParams.set("skip", String(offset));
-      url.searchParams.set("limit", String(limit));
-
+      const url = catalogPageUrl(input);
       const response = await fetchCatalog(url, { signal, redirect: "error", cache: "no-store" });
 
       if (!response.ok) {

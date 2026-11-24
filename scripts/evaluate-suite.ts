@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { Turn } from "../packages/features/conversation/src/domain/turn.ts";
 import type { ShopperServices } from "../apps/web/src/server/services.ts";
 import { createConversationRepository } from "../packages/adapters/evaluation-store/src/conversations.ts";
 import { saveResults } from "../packages/adapters/evaluation-store/src/results.ts";
@@ -11,13 +12,14 @@ import {
   evaluationPassed,
   evaluationResultSchema,
   type Profile,
+  type Observation,
   type EvaluationResult,
 } from "../packages/features/evaluation/src/domain/result.ts";
 import { observe, score } from "../packages/features/evaluation/src/application/evaluate.ts";
 
 type Factory = (repository: ReturnType<typeof createConversationRepository>) => ShopperServices;
 
-async function send(services: ShopperServices, threadId: string, prompt: string) {
+async function sendAndReloadTurn(services: ShopperServices, threadId: string, prompt: string) {
   const turnId = randomUUID();
   const stream = await services.chat.send(threadId, { turnId, text: prompt });
   let diagnostic: string | null = null;
@@ -34,6 +36,65 @@ async function send(services: ShopperServices, threadId: string, prompt: string)
   return { turn, diagnostic };
 }
 
+type CaseIdentity = Pick<EvaluationResult, "id" | "runId" | "caseName" | "profile" | "expected">;
+
+async function prepareEvaluationThread(
+  services: ShopperServices,
+  threadId: string,
+  expected: EvaluationCase,
+) {
+  if (expected.priorChat) {
+    const prior = randomUUID();
+    await services.management.create(prior);
+
+    if ((await sendAndReloadTurn(services, prior, expected.priorChat)).turn.state !== "completed")
+      throw new Error("Background chat failed.");
+  }
+
+  await services.management.create(threadId);
+
+  if (
+    expected.priorTurn &&
+    (await sendAndReloadTurn(services, threadId, expected.priorTurn)).turn.state !== "completed"
+  )
+    throw new Error("Background turn failed.");
+}
+
+function measureTurnTiming(turn: Turn, startedAt: number) {
+  return {
+    recordedAt: new Date().toISOString(),
+    firstOutputMs: turn.metrics?.firstVisibleMs ?? null,
+    durationMs: turn.metrics?.durationMs ?? Date.now() - startedAt,
+  };
+}
+
+function canScoreTurn(turn: Turn, actual: Observation) {
+  return (
+    turn.state === "completed" &&
+    actual.metrics !== null &&
+    actual.decision !== null &&
+    !actual.groups.some((group) => group.kind === "lookup-error")
+  );
+}
+
+function executionErrorResult(
+  base: CaseIdentity,
+  actual: Observation,
+  timing: Pick<EvaluationResult, "recordedAt" | "firstOutputMs" | "durationMs">,
+  detail: string,
+) {
+  return evaluationResultSchema.parse({
+    ...base,
+    ...timing,
+    actual,
+    outcome: "execution-error",
+    intentMatch: null,
+    constraintsSatisfied: null,
+    correctAbstention: null,
+    detail,
+  });
+}
+
 export async function executeCase(
   factory: Factory,
   runId: string,
@@ -48,37 +109,14 @@ export async function executeCase(
   const base = { id: randomUUID(), runId, caseName: expected.name, profile, expected };
 
   try {
-    if (expected.priorChat) {
-      const prior = randomUUID();
-      await services.management.create(prior);
-
-      if ((await send(services, prior, expected.priorChat)).turn.state !== "completed")
-        throw new Error("Background chat failed.");
-    }
-
-    await services.management.create(threadId);
-
-    if (
-      expected.priorTurn &&
-      (await send(services, threadId, expected.priorTurn)).turn.state !== "completed"
-    )
-      throw new Error("Background turn failed.");
+    await prepareEvaluationThread(services, threadId, expected);
     startedAt = Date.now();
-    const { turn, diagnostic } = await send(services, threadId, expected.prompt);
+    const { turn, diagnostic } = await sendAndReloadTurn(services, threadId, expected.prompt);
     const actual = observe(turn);
 
-    const timing = {
-      recordedAt: new Date().toISOString(),
-      firstOutputMs: turn.metrics?.firstVisibleMs ?? null,
-      durationMs: turn.metrics?.durationMs ?? Date.now() - startedAt,
-    };
+    const timing = measureTurnTiming(turn, startedAt);
 
-    if (
-      turn.state === "completed" &&
-      actual.metrics &&
-      actual.decision &&
-      !actual.groups.some((group) => group.kind === "lookup-error")
-    ) {
+    if (canScoreTurn(turn, actual)) {
       return evaluationResultSchema.parse({
         ...base,
         ...timing,
@@ -90,29 +128,18 @@ export async function executeCase(
 
     detail = diagnostic ?? "The model or catalog operation did not complete.";
 
-    return evaluationResultSchema.parse({
-      ...base,
-      ...timing,
-      actual,
-      outcome: "execution-error",
-      intentMatch: null,
-      constraintsSatisfied: null,
-      correctAbstention: null,
-      detail,
-    });
+    return executionErrorResult(base, actual, timing, detail);
   } catch {
-    return evaluationResultSchema.parse({
-      ...base,
-      recordedAt: new Date().toISOString(),
-      firstOutputMs: null,
-      durationMs: Date.now() - startedAt,
-      actual: { decision: null, groups: [], metrics: null },
-      outcome: "execution-error",
-      intentMatch: null,
-      constraintsSatisfied: null,
-      correctAbstention: null,
+    return executionErrorResult(
+      base,
+      { decision: null, groups: [], metrics: null },
+      {
+        recordedAt: new Date().toISOString(),
+        firstOutputMs: null,
+        durationMs: Date.now() - startedAt,
+      },
       detail,
-    });
+    );
   }
 }
 

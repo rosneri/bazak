@@ -2,6 +2,10 @@
   "name": "@bazak/product-discovery",
   "private": true,
   "type": "module",
+  "imports": {
+    "#application/*": "./src/application/*.ts",
+    "#domain/*": "./src/domain/*.ts"
+  },
   "exports": {
     "./application/catalog": "./src/application/catalog.ts",
     "./domain/discovery": "./src/domain/discovery.ts",

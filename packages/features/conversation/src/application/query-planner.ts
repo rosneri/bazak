@@ -8,7 +8,10 @@ import {
   type IntentDecision,
 } from "@bazak/product-discovery/domain/discovery";
 import type { AttemptMetrics } from "@bazak/conversation/domain/turn";
-import type { ConversationRepository } from "@bazak/conversation/application/repository";
+import type {
+  ConversationRepository,
+  HistoryEvidence,
+} from "@bazak/conversation/application/repository";
 
 export const historyCriteriaSchema = z
   .array(discoveryCriteriaSchema)
@@ -54,21 +57,40 @@ export interface QueryPlanner {
 
 export type SearchGroup = Extract<IntentDecision, { kind: "discover" }>["searches"][number];
 
-interface GroupPlan {
+export interface GroupPlan {
   hint?: SearchHint;
   question?: string;
 }
 
-export async function planGroups(
+function extractCategoryEvidence(
+  prior: HistoryEvidence[],
+  category: string,
+): PlannerInput["history"] {
+  const evidence: PlannerInput["history"] = [];
+
+  for (const item of prior.slice(0, 5)) {
+    const parsed = historyCriteriaSchema.safeParse(item.criteria);
+
+    if (!parsed.success || !parsed.data.every((criteria) => criteria.category === category))
+      continue;
+
+    for (const { keywords, maxPrice, priceOrder } of parsed.data) {
+      const grounded = keywords && groundedKeywords(keywords, item.text);
+      evidence.push({ keywords: grounded || undefined, maxPrice, priceOrder });
+    }
+  }
+
+  return evidence;
+}
+
+async function collectPlannerInputs(
   groups: SearchGroup[],
   id: string,
   repo: ConversationRepository,
-  planner: QueryPlanner,
   metrics: AttemptMetrics,
   signal: AbortSignal,
-): Promise<Map<number, GroupPlan>> {
+) {
   const inputs: PlannerInput[] = [];
-  const plans = new Map<number, GroupPlan>();
   const byCategory = new Map<string, PlannerInput["history"]>();
 
   for (const [index, group] of groups.entries()) {
@@ -85,20 +107,7 @@ export async function planGroups(
         // Repeated categories share their history within this batch.
         // oxlint-disable-next-line no-await-in-loop
         const prior = await bounded(() => repo.relevantHistory(id, category), signal);
-        evidence = [];
-
-        for (const item of prior.slice(0, 5)) {
-          const parsed = historyCriteriaSchema.safeParse(item.criteria);
-
-          if (!parsed.success || !parsed.data.every((criteria) => criteria.category === category))
-            continue;
-
-          for (const { keywords, maxPrice, priceOrder } of parsed.data) {
-            const grounded = keywords && groundedKeywords(keywords, item.text);
-            evidence.push({ keywords: grounded || undefined, maxPrice, priceOrder });
-          }
-        }
-
+        evidence = extractCategoryEvidence(prior, category);
         byCategory.set(category, evidence);
       }
 
@@ -108,6 +117,69 @@ export async function planGroups(
     }
   }
 
+  return inputs;
+}
+
+function validateProposalIndices(proposals: PlannerProposal[], inputs: PlannerInput[]) {
+  const seen = new Set<number>();
+
+  for (const proposal of proposals) {
+    if (seen.has(proposal.index) || !inputs.some((input) => input.index === proposal.index))
+      throw new Error("Invalid proposal correlation.");
+    seen.add(proposal.index);
+  }
+}
+
+function applyPlannerProposals(
+  proposals: PlannerProposal[],
+  inputs: PlannerInput[],
+  metrics: AttemptMetrics,
+  plans: Map<number, GroupPlan>,
+) {
+  for (const proposal of proposals) {
+    const input = inputs.find((candidate) => candidate.index === proposal.index);
+
+    if (proposal.kind === "clarify") {
+      const category = input?.criteria.category;
+
+      const question =
+        category === "fragrances"
+          ? "Which fragrance notes do you prefer?"
+          : "Which type, feature, or style should I look for?";
+
+      plans.set(proposal.index, { question });
+      metrics.planner[proposal.index] = "clarification";
+    } else {
+      const evidence = input?.history ?? [];
+      const keywords = proposal.keywords;
+
+      const grounded = keywords
+        ? evidence
+            .map((item) => item.keywords && groundedKeywords(keywords, item.keywords))
+            .find(Boolean)
+        : null;
+
+      if (keywords && !grounded) continue;
+
+      plans.set(proposal.index, {
+        hint: { keywords: grounded || null, priceOrder: proposal.priceOrder },
+      });
+      metrics.planner[proposal.index] = "used";
+    }
+  }
+}
+
+export async function planGroups(
+  groups: SearchGroup[],
+  id: string,
+  repo: ConversationRepository,
+  planner: QueryPlanner,
+  metrics: AttemptMetrics,
+  signal: AbortSignal,
+): Promise<Map<number, GroupPlan>> {
+  const plans = new Map<number, GroupPlan>();
+  const inputs = await collectPlannerInputs(groups, id, repo, metrics, signal);
+
   if (!inputs.length || signal.aborted) return plans;
   metrics.plannerCalls++;
 
@@ -116,47 +188,11 @@ export async function planGroups(
       await bounded(() => planner.plan(inputs, signal), signal),
     );
 
-    const seen = new Set<number>();
-
-    for (const proposal of proposals) {
-      if (seen.has(proposal.index) || !inputs.some((input) => input.index === proposal.index))
-        throw new Error("Invalid proposal correlation.");
-      seen.add(proposal.index);
-    }
+    validateProposalIndices(proposals, inputs);
 
     for (const input of inputs) metrics.planner[input.index] = "fallback";
 
-    for (const proposal of proposals) {
-      const input = inputs.find((candidate) => candidate.index === proposal.index);
-
-      if (proposal.kind === "clarify") {
-        const category = input?.criteria.category;
-
-        const question =
-          category === "fragrances"
-            ? "Which fragrance notes do you prefer?"
-            : "Which type, feature, or style should I look for?";
-
-        plans.set(proposal.index, { question });
-        metrics.planner[proposal.index] = "clarification";
-      } else {
-        const evidence = input?.history ?? [];
-        const keywords = proposal.keywords;
-
-        const grounded = keywords
-          ? evidence
-              .map((item) => item.keywords && groundedKeywords(keywords, item.keywords))
-              .find(Boolean)
-          : null;
-
-        if (keywords && !grounded) continue;
-
-        plans.set(proposal.index, {
-          hint: { keywords: grounded || null, priceOrder: proposal.priceOrder },
-        });
-        metrics.planner[proposal.index] = "used";
-      }
-    }
+    applyPlannerProposals(proposals, inputs, metrics, plans);
   } catch {
     for (const input of inputs) metrics.planner[input.index] = "fallback";
   }

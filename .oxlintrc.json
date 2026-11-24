@@ -17,6 +17,8 @@
     "perf": "warn"
   },
   "rules": {
+    "max-lines": ["error", { "max": 400 }],
+    "max-lines-per-function": ["error", { "max": 50, "IIFEs": true }],
     "import/no-unassigned-import": [
       "warn",
       {
@@ -70,12 +72,13 @@
     "anti-slop/no-unknown-type-aliases": "error",
     "anti-slop/no-unsafe-dictionary-type": "error",
     "anti-slop/no-widen-then-assert": "error",
+    "anti-slop/require-named-effect": "error",
     "anti-slop/require-readable-spacing": "error",
     "anti-slop/require-safety-comment-for-type-assertion": "error"
   },
   "overrides": [
     {
-      "files": ["apps/web/src/api/generated/*.ts"],
+      "files": ["apps/web/src/api/generated/**/*.ts"],
       "rules": {
         "anti-slop/no-unknown-returns": "off",
         "anti-slop/no-unsafe-dictionary-type": "off",
