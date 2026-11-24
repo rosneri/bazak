@@ -1,3 +1,8 @@
+:root {
+  --diff-removed: light-dark(#fbe1e4, #48262d);
+  --diff-added: light-dark(#ddf2e4, #183b2b);
+}
+
 .diff-scroll {
   overflow: auto;
   max-height: 32rem;
@@ -30,11 +35,11 @@
 }
 
 .split-diff [data-change="−"] {
-  background: light-dark(#fbe1e4, #48262d);
+  background: var(--diff-removed);
 }
 
 .split-diff [data-change="+"] {
-  background: light-dark(#ddf2e4, #183b2b);
+  background: var(--diff-added);
 }
 
 .diff-sign {
