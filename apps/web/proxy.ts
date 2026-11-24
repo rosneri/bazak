@@ -1,7 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { catalogThumbnailOrigin } from "@bazak/dummyjson/thumbnail";
-import { documentPolicy, documentRequestHeaders, secureDocument } from "../shared/browser-security";
-import { getLoopbackOrigin } from "../shared/loopback-origin";
+import {
+  documentPolicy,
+  documentRequestHeaders,
+  secureDocument,
+} from "@bazak/shared/browser-security";
+import { getLoopbackOrigin } from "@bazak/shared/loopback-origin";
 
 export function proxy(request: NextRequest) {
   const origin = getLoopbackOrigin(request.headers, process.env.PORT ?? "3000");

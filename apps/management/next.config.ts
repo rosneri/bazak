@@ -1,5 +1,5 @@
+import { browserSecurityHeaders } from "@bazak/shared/browser-security";
 import type { NextConfig } from "next";
-import { browserSecurityHeaders } from "../shared/browser-security";
 
 const config: NextConfig = {
   poweredByHeader: false,

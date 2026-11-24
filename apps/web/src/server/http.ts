@@ -5,7 +5,7 @@ import {
   turnEventSchema,
   type TurnEvent as DomainTurnEvent,
 } from "@bazak/conversation/domain/turn";
-import { getLoopbackOrigin } from "../../../shared/loopback-origin.ts";
+import { getLoopbackOrigin } from "@bazak/shared/loopback-origin";
 import {
   type ApiErrorCode,
   ApiErrorResponse,

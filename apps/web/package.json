@@ -16,6 +16,7 @@
     "@bazak/dummyjson": "workspace:*",
     "@bazak/evaluation-store": "workspace:*",
     "@bazak/product-discovery": "workspace:*",
+    "@bazak/shared": "workspace:*",
     "@bazak/ui": "workspace:*",
     "@tanstack/react-query": "5.108.2",
     "ai": "7.0.179",

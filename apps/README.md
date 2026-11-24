@@ -8,4 +8,4 @@ This directory contains the Next.js application workspaces.
 
 - [Shopper web app](./web/README.md) serves chat, history and the streaming conversation API.
 - [Evaluation management app](./management/README.md) serves the loopback evaluation report and its case evidence.
-- [Shared entry-point policy](./shared/browser-security.ts) sets browser response headers and applies a fresh script nonce to each rendered page. The two apps use the same [loopback Host check](./shared/loopback-origin.ts).
+- [Shared application security](../packages/libraries/shared/README.md) sets browser response headers, applies a fresh script nonce to each rendered page and checks loopback Host headers for both apps.

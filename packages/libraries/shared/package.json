@@ -1,0 +1,15 @@
+{
+  "name": "@bazak/shared",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./browser-security": "./src/browser-security.ts",
+    "./loopback-origin": "./src/loopback-origin.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2"
+  }
+}

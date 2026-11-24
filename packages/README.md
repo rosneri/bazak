@@ -8,7 +8,7 @@ Shared contracts, external integrations, and presentation primitives used by the
 
 - [features](./features/README.md) · Domain and application contracts.
 - [adapters](./adapters/README.md) · Catalog HTTP and PostgreSQL conversation and evaluation storage.
-- [libraries](./libraries/README.md) · Shared UI primitives and styles.
+- [libraries](./libraries/README.md) · Shared HTTP security helpers, UI primitives and styles.
 
 ## Verification
 
