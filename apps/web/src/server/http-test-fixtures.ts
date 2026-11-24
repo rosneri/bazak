@@ -47,7 +47,7 @@ export const results = { type: "products", turnId, part: assistant.parts[0] } sa
 export const textDelta = {
   type: "text-delta",
   turnId,
-  text: "Here’s what I found.",
+  text: "What kind of product are you looking for?",
 } satisfies TurnEvent;
 
 export const done = { type: "done", turnId, assistant } satisfies TurnEvent;
@@ -80,7 +80,7 @@ export function baseline(): ShopperServices {
       load: async () => ({ conversation, turns: [] }),
     },
     chat: {
-      send: async () => events([status, results, textDelta, done]),
+      send: async () => events([status, results, done]),
       retry: async () => events([{ ...status, state: "completed", attempt: 2 }, done]),
     },
   };

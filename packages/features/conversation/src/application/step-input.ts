@@ -1,7 +1,7 @@
 import type { ModelInput, ModelDecision } from "#application/chat";
 import type { PlannerInput, SearchGroup } from "#application/query-planner";
 import type { routingHistory } from "#application/resolve-references";
-import type { DiscoveryCriteria, IntentDecision } from "@bazak/product-discovery/domain/discovery";
+import type { DiscoveryCriteria } from "@bazak/product-discovery/domain/discovery";
 import type { SearchHint } from "@bazak/product-discovery/application/discovery";
 import type { AttemptMetrics } from "@bazak/conversation/domain/turn";
 
@@ -18,7 +18,6 @@ interface StageInput {
   catalog:
     | { label: string; criteria: DiscoveryCriteria; hint?: SearchHint }
     | { productId: string };
-  reply: IntentDecision | ProviderPrompt;
 }
 
 export function recordInput<Stage extends RecordedInput["stage"]>(

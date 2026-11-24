@@ -40,9 +40,6 @@ export const attemptMetricsPlannerCallsMax = 1;
 export const attemptMetricsCatalogCallsMin = 0;
 export const attemptMetricsCatalogCallsMax = 9;
 
-export const attemptMetricsReplyCallsMin = 0;
-export const attemptMetricsReplyCallsMax = 1;
-
 export const attemptMetricsFirstVisibleMsOneMin = 0;
 
 export const attemptMetricsDurationMsMin = 0;
@@ -53,7 +50,7 @@ export const AttemptMetrics = zod
       .array(
         zod
           .strictObject({
-            stage: zod.enum(["intent", "planner", "reply"]).describe("Model operation."),
+            stage: zod.enum(["intent", "planner"]).describe("Model operation."),
             model: zod.string().describe("Model identifier or local fixture."),
             input: zod
               .int()
@@ -100,7 +97,7 @@ export const AttemptMetrics = zod
         zod
           .strictObject({
             stage: zod
-              .enum(["intent", "decision", "planner", "catalog", "reply"])
+              .enum(["intent", "decision", "planner", "catalog"])
               .describe("Operation that received the input."),
             name: zod.string().describe("Name of the input at the operation boundary."),
             value: zod.string().describe("JSON snapshot captured when the operation was invoked."),
@@ -134,11 +131,6 @@ export const AttemptMetrics = zod
       .min(attemptMetricsCatalogCallsMin)
       .max(attemptMetricsCatalogCallsMax)
       .describe("Number of catalog requests started, including failed requests."),
-    replyCalls: zod
-      .int()
-      .min(attemptMetricsReplyCallsMin)
-      .max(attemptMetricsReplyCallsMax)
-      .describe("Number of assistant reply streams started."),
     queries: zod.array(CatalogQuery).describe("Page queries attempted in order."),
     planner: zod
       .array(

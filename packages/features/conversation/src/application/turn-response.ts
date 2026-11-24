@@ -1,5 +1,4 @@
 import { recordInput } from "#application/step-input";
-import { approvedFraming } from "#application/framing";
 import { bounded, stageSignal } from "#application/deadline";
 import type { ConversationDependencies, ConversationEvent } from "#application/chat";
 import type { IntentDecision } from "@bazak/product-discovery/domain/discovery";
@@ -139,43 +138,10 @@ async function loadProductDetail(response: TurnResponse, productId: string): Pro
       };
 }
 
-async function* streamReplyFraming(response: TurnResponse): AsyncGenerator<ConversationEvent> {
-  const {
-    signal,
-    metrics,
-    turnId,
-    parts,
-    deps: { model },
-  } = response;
-
-  signal.throwIfAborted();
-  const replySignal = stageSignal(signal, 25_000);
-  metrics.replyCalls++;
-
-  let framing = "";
-
-  for await (const phrase of approvedFraming(
-    model.reply(
-      replySignal,
-      (prompt) => recordInput(metrics, "reply", "Provider prompt", prompt),
-      (usage) => metrics.usage?.push({ stage: "reply", ...usage }),
-    ),
-    replySignal,
-  )) {
-    framing += phrase;
-    response.markVisible();
-    yield { type: "text-delta", turnId, text: phrase };
-  }
-
-  if (framing) parts.push({ type: "text", text: framing });
-}
-
 export async function* streamTurnResponse(
   response: TurnResponse,
   decision: IntentDecision,
 ): AsyncGenerator<ConversationEvent> {
-  recordInput(response.metrics, "reply", "Response decision", decision);
-
   if (decision.kind === "clarify" || decision.kind === "off-catalog") {
     const text = decision.kind === "clarify" ? decision.question : scopeGuidance;
     response.parts.push({ type: "text", text });
@@ -190,7 +156,4 @@ export async function* streamTurnResponse(
     yield { type: "lookup", turnId: response.turnId, label: "Product details" };
     yield recordProductGroup(response, await loadProductDetail(response, decision.productId));
   } else throw new Error("Unresolved reference.");
-
-  if (response.parts.some((part) => part.type === "products" && part.group.kind === "matched"))
-    yield* streamReplyFraming(response);
 }

@@ -56,17 +56,13 @@ flowchart TD
   check -->|"Accepted clarification"| fixed
   lookup --> result["Stream each result group in request order"]
   detail --> result
-  result --> match{"Any matched group?"}
-  match -->|"Yes"| frame["AI 3 · Stream short closing phrases"]
-  frame --> guard["CODE · Release only approved phrase prefixes"]
-  match -->|"No"| save["Validate and save answer, then send done"]
+  result --> save["Validate and save answer, then send done"]
   fixed --> save
-  guard --> save
 ```
 
 The planner can batch eligible groups into one call. Its history contains prior same-category search criteria. A failed planner call falls back to the shopper’s explicit criteria. Within a mixed discovery request, a clarification or scope message streams as its own group before the service moves to the next one.
 
-Product names, prices, stock and cards come from catalog records. The final model call receives a prompt containing two approved sentences. It receives no product records. If its output diverges after an approved prefix has already appeared, the attempt fails.
+Product names, prices, stock and cards come from catalog records.
 
 [Model calls and prompts](../apps/web/src/server/sdk.ts) · [Planner eligibility and fallback](../packages/features/conversation/src/application/query-planner.ts) · [Discovery](../packages/features/product-discovery/src/application/discovery.ts) · [Response assembly](../packages/features/conversation/src/application/turn-response.ts)
 
@@ -95,7 +91,7 @@ sequenceDiagram
   T-->>B: Stream lookup progress
   T->>C: Request catalog pages
   C-->>T: Product records
-  T-->>B: Stream ranked cards, then approved framing
+  T-->>B: Stream ranked cards
   T->>D: Save answer including ordered product snapshots
   T-->>B: Stream done with saved answer
   B->>T: Refresh saved conversation
@@ -110,7 +106,7 @@ sequenceDiagram
     T-->>B: Stream lookup progress
     T->>C: Fetch current product by ID
     C-->>T: Current record or missing product
-    T-->>B: Stream detail card and framing if matched, or empty group if missing
+    T-->>B: Stream detail card if matched, or empty group if missing
   else ID absent from recent cards
     T-->>B: Stream question asking which product to check
   end
@@ -160,7 +156,6 @@ If the server dies, the database can still say **running**. A successful thread 
 | Preference history or optional AI planner fails                        | Missing evidence skips planning. A planner error, unusable proposal, or planner timeout (8 seconds) falls back to the explicit search criteria while the attempt remains active.                                                                                                                                                                   | The search can finish without personalization. No shopper action is required.                                                                                                             |
 | Product search fails                                                   | An ordinary base-page error, including malformed catalog data, yields a lookup-error group. Other groups can continue. An optional preference-page error falls back to the base search. A capped or inconsistent scan reports partial coverage. A retrieval deadline (25 seconds shared across groups) can fail the whole attempt.                 | A saved lookup-error group can be requested again in a new message. Partial coverage and zero matches are reported as search outcomes. A failed attempt instead exposes whole-turn Retry. |
 | The stock follow-up reaches the detail endpoint                        | A catalog 404 produces an empty result. Other failures, including a mismatched ID, malformed record, transport error or timeout, propagate to the whole attempt.                                                                                                                                                                                   | A removed product gets a normal “no longer lists” answer. An unavailable detail service gives a failed reply. Earlier completed cards stay in history.                                    |
-| Closing text fails after cards appeared                                | A framing provider error, timeout (25 seconds), incomplete visible phrase or divergence from a visible approved prefix can fail the entire attempt. Failure settlement stores no assistant answer.                                                                                                                                                 | The shopper may have seen valid cards. They can remain as an unsaved preview in the open page. Reload loses that preview and a new follow-up cannot rely on those cards.                  |
 | Browser cancels, navigates away, or loses the stream                   | Detected cancellation signals the running service and cleanup attempts to record interruption. Malformed, truncated or oversized stream data can terminate the reader. A broken connection races with completion.                                                                                                                                  | Reopen or refresh the chat. A completed turn has its saved answer. An interrupted turn offers Retry. An uncertain preview alone cannot establish either outcome.                          |
 | Server crashes or exceeds its overall lease                            | A hard crash can skip cleanup. Expiry is reconciled on later thread access. Settlement checks both the running turn and its attempt number under lock, so a late result cannot overwrite a newer attempt.                                                                                                                                          | The chat may appear busy until expiry is observed. The shopper can then retry. No intermediate group or token is available to resume.                                                     |
 | Final validation or database settlement fails                          | Answer, attempt outcome, metrics, search evidence and thread timestamp share a settlement transaction. A rollback leaves no partial completed answer. The service tries to record failure. If that write also fails, the attempt can remain running until expiry. If the commit succeeded but its acknowledgment was lost, the completed row wins. | An error here means the browser should read history. Repeating provider calls before checking could redo an answer already saved.                                                         |
@@ -172,7 +167,7 @@ If the server dies, the database can still say **running**. A successful thread 
 
 ### A recovery design for this shopper
 
-1. **Preserve the useful answer first.** Generate the two approved framing sentences locally, or finish with the verified cards when optional framing fails. Persist pending conversation and turn IDs with the draft across reloads and clear them after reconciliation. Make pending, saved and interrupted results visibly distinct. These changes address lost cards from optional framing and accidental duplicate sends. They still leave a crash window before the answer commit.
+1. **Preserve pending submissions.** Persist pending conversation and turn IDs with the draft across reloads and clear them after reconciliation. Make pending, saved and interrupted results visibly distinct. These changes address accidental duplicate sends. They still leave a crash window before the answer commit.
 2. **If an accepted turn should finish after the shopper leaves, give execution to a durable worker.** In the transaction that accepts the message, also make work available to a worker. The simplest option here is a job row in the existing PostgreSQL database. The browser subscribes to progress. Disconnecting ends the subscription. An explicit cancel action would stop execution. This trades additional background work and cost for completion independent of the browser.
 3. **Checkpoint at boundaries the shopper can recognize.** Persist the validated intent and the inputs it depended on, then each completed result group with its ordered snapshots. Commit a group before publishing its cards. Give each group a stable key and each progress event a sequence number. A recovering worker reuses committed groups and starts at the first unfinished group. A reconnecting browser loads saved progress and deduplicates later events. This preserves the identity of “the second one” across a restart.
 4. **Bound replay and fence stale writers.** Claim jobs with expiring leases and an ownership generation. Fence every checkpoint and final write by that generation. Retry transient network failures, rate limits and eligible server errors with backoff, jitter and a finite budget. Respect provider retry delays. Surface permanent errors such as invalid configuration immediately. When the budget runs out, persist a terminal failure and the available recovery action. Keep collecting worker lag, stale leases, retries per stage and elapsed time until the shopper sees a terminal state.

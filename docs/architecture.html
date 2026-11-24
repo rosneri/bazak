@@ -148,8 +148,9 @@
     <main>
       <h1>Shopping copilot architecture</h1>
       <p>
-        Both local apps use PostgreSQL. The shopper streams product groups and approved sentences
-        over the response to a turn POST. The management app reads evaluation evidence on request.
+        Both local apps use PostgreSQL. The shopper streams verified product groups and shopping
+        guidance over the response to a turn POST. The management app reads evaluation evidence on
+        request.
       </p>
       <h2>Implemented system</h2>
       <figure class="diagram" style="text-align: left">
@@ -160,7 +161,7 @@ Shopper browser ⇄ Next.js routes · 3000
                       │
                       ├─ Conversation management ───────────┐
                       └─ Conversation service               │
-                           ├─ Intent / planner / reply      │
+                           ├─ Intent / optional planner      │
                            │   ├─ Production · SDK → OpenAI │
                            │   └─ Fixture · scripted model  │
                            ├─ Discovery                     │
@@ -1962,12 +1963,12 @@ Management dashboard · 3002 → read run and case ─────────�
       </figure>
       <p>
         The chat turn interprets a request in the context of its thread. It uses the injected SDK
-        model for intent classification and reply generation. The conversation domain defines OpenAI
-        as the default provider. App composition resolves that value to an SDK language model. A
-        fallback can be configured later. When the intent calls for products, the turn delegates to
-        discovery. Discovery chooses an allowed query, then filters and ranks the candidates. The
-        DummyJSON adapter validates the catalog response, which supplies the titles, prices and
-        images.
+        model for intent classification and optional query planning. The conversation domain defines
+        OpenAI as the default provider. App composition resolves that value to an SDK language
+        model. A fallback can be configured later. When the intent calls for products, the turn
+        delegates to discovery. Discovery chooses an allowed query, then filters and ranks the
+        candidates. The DummyJSON adapter validates the catalog response, which supplies the titles,
+        prices and images.
       </p>
       <p>
         A2UI describes a UI surface using data the browser maps to registered components. Here, a

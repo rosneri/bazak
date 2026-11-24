@@ -41,8 +41,6 @@ export { modelDecisionSchema, type ModelDecision } from "#application/model-deci
 
 export { sendTurnInputSchema } from "@bazak/conversation/domain/turn";
 
-export { SAFE_FRAMING } from "#application/framing";
-
 export type TurnErrorCode = RepositoryCode | "provider_configuration" | "attempt_failed";
 
 export type ConversationEvent =
@@ -61,11 +59,6 @@ export interface ConversationModel {
     observe?: PromptObserver,
     usage?: UsageObserver,
   ): Promise<ModelDecision>;
-  reply(
-    signal: AbortSignal,
-    observe?: PromptObserver,
-    usage?: UsageObserver,
-  ): AsyncIterable<string>;
 }
 
 export interface ConversationDependencies {
@@ -110,7 +103,6 @@ function startAttempt(
     intentCalls: 0,
     plannerCalls: 0,
     catalogCalls: 0,
-    replyCalls: 0,
     planner: [],
     queries: [],
     providerUrls: [],

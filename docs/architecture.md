@@ -12,9 +12,9 @@ flowchart TB
   route --> controller["Conversation transport controller"]
   controller --> management["Create, list and load chats"]
   controller --> turns["Send or retry turn"]
-  turns -->|"Intent, optional planner, streamed framing"| model["Model ports"]
+  turns -->|"Intent and optional planner"| model["Model ports"]
   model -->|"Production"| sdk["Vercel AI SDK · OpenAI gpt-6-luna"]
-  model -->|"Fixture"| script["Scripted decisions and framing"]
+  model -->|"Fixture"| script["Scripted decisions"]
   turns --> discovery["Discovery · criteria, coverage and ranking"]
   discovery --> catalog["ProductCatalog"]
   catalog -->|"Production"| dummy["DummyJSON"]
@@ -153,6 +153,6 @@ erDiagram
 
 A thread contains ordered turns for one scope. Each logical turn stores stable user text and, on completion, its decision and one JSON assistant message with ordered parts. Each generation has a separate attempt row and lease. Search evidence indexes category-specific prior criteria, which other threads in the same scope can use. A labeled result stores its own evidence and scores. [Prisma schema](../packages/adapters/evaluation-store/prisma/schema.prisma)
 
-A new turn streams its status, verified groups and approved text from one POST. The server validates a complete framing sentence before sending it. Adjacent text deltas become one saved paragraph. Only the current lease holder may commit the assistant reply. A successful write precedes the terminal `done` event. Failure after a preview produces an unsaved state and the client reconciles against PostgreSQL. A crashed process can leave timing and call metrics unknown for an expired attempt. [Conversation service](../packages/features/conversation/src/application/chat.ts) · [Browser recovery](../apps/web/src/client/chat-session.ts)
+A new turn streams its status, verified groups and guidance text from one POST. Only the current lease holder may commit the assistant reply. A successful write precedes the terminal `done` event. Failure after a preview produces an unsaved state and the client reconciles against PostgreSQL. A crashed process can leave timing and call metrics unknown for an expired attempt. [Conversation service](../packages/features/conversation/src/application/chat.ts) · [Browser recovery](../apps/web/src/client/chat-session.ts)
 
 Model and catalog requests happen server-side during live turns. A browser can request an external image URL from a saved card. If the image disappears, the card retains the original product text, price and accessible image fallback. The PostgreSQL named volume survives restarts. The fixture browser journey uses no external requests. [Shopper transport and profiles](../apps/web/README.md) · [Verification and observations](../README.md#verification-and-measured-results)

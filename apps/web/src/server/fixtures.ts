@@ -1,7 +1,6 @@
 import { existsSync } from "node:fs";
 import { setTimeout as delay } from "node:timers/promises";
 import {
-  SAFE_FRAMING,
   type ConversationModel,
   type ModelDecision,
   type ModelInput,
@@ -220,16 +219,6 @@ export const fixtureModel: ConversationModel = {
     signal.throwIfAborted();
 
     return interpret(input);
-  },
-  async *reply(signal, _prompt, usage) {
-    usage?.(fixtureUsage);
-    signal.throwIfAborted();
-    yield "Here’s what ";
-
-    // The browser harness holds the fixture's final chunk until the preview is visible.
-    // oxlint-disable-next-line no-await-in-loop -- The fixture gate releases after the browser has observed streamed text.
-    while (existsSync(".next-fixture/hold-reply")) await delay(35, undefined, { signal });
-    yield "I found. " + SAFE_FRAMING[1];
   },
 };
 

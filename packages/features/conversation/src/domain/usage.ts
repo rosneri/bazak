@@ -8,9 +8,7 @@ const tokenCount = z
 
 export const callUsageSchema = z
   .strictObject({
-    stage: z
-      .enum(["intent", "planner", "reply"])
-      .describe("Model operation responsible for the call."),
+    stage: z.enum(["intent", "planner"]).describe("Model operation responsible for the call."),
     model: z.string().min(1).describe("Model identifier or local fixture."),
     input: tokenCount.describe("Total input tokens, including cached input."),
     output: tokenCount.describe("Total output tokens, including reasoning."),
@@ -92,10 +90,9 @@ export function attemptUsage(
     usage?: CallUsage[];
     intentCalls: number;
     plannerCalls: number;
-    replyCalls: number;
   } | null,
 ) {
   return metrics
-    ? summarizeCalls(metrics.usage, metrics.intentCalls + metrics.plannerCalls + metrics.replyCalls)
+    ? summarizeCalls(metrics.usage, metrics.intentCalls + metrics.plannerCalls)
     : summarizeCalls([], 1);
 }

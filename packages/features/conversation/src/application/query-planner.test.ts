@@ -20,7 +20,6 @@ function metrics(): AttemptMetrics {
     intentCalls: 1,
     plannerCalls: 0,
     catalogCalls: 0,
-    replyCalls: 0,
     queries: [],
     planner: [],
     firstVisibleMs: null,

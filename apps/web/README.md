@@ -14,7 +14,7 @@ OpenAPI defines create, list, load, send, and retry, along with their JSON respo
 
 An assistant message contains an ordered `parts` array. Each part is either plain text or a registered `{type: "products", version: 1, group}` object. A group carries the label, criteria, coverage, outcome, shopper message, and verified product snapshots. The same React component renders live product events and saved messages. The application controls the surface registry and all catalog facts. This local message format supports one versioned product surface.
 
-For discovery and detail replies, production uses AI SDK structured output for intent and optional query planning, then streams approved framing sentences. Each completed approved sentence appears immediately. Adjacent text deltas become one paragraph in the saved reply. The HTTP handlers and client both validate the typed event shape. [AI SDK structured output](https://ai-sdk.dev/docs/ai-sdk-core/generating-structured-data) · [OpenAI structured output requirements](https://developers.openai.com/api/docs/guides/structured-outputs)
+For discovery and detail replies, production uses AI SDK structured output for intent and optional query planning. The server streams each verified product group as it is ready. The HTTP handlers and client both validate the typed event shape. [AI SDK structured output](https://ai-sdk.dev/docs/ai-sdk-core/generating-structured-data) · [OpenAI structured output requirements](https://developers.openai.com/api/docs/guides/structured-outputs)
 
 ## Verification
 

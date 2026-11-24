@@ -1,12 +1,13 @@
 import { formatUsage, attemptUsage } from "@bazak/conversation/domain/usage";
 import type { Turn } from "@bazak/conversation/domain/turn";
-import { debugStages } from "./debug-stages";
+import { attemptTiming, debugStages } from "./debug-stages";
 
 export function TurnDiagnostics({ turn }: { turn: Turn }) {
   return (
     <details className="turn-diagnostics">
       <summary>Debug steps · Attempt {turn.attempt}</summary>
       <p>{formatUsage(attemptUsage(turn.metrics))}</p>
+      <p>{attemptTiming(turn)}</p>
       <ol>
         {debugStages(turn).map(([label, status, inputs, output], index) => (
           <li key={label}>

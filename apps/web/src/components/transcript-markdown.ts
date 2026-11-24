@@ -1,6 +1,6 @@
 import { formatUsage, attemptUsage } from "@bazak/conversation/domain/usage";
 import type { ConversationHistory, MessagePart, Turn } from "@bazak/conversation/domain/turn";
-import { debugStages } from "./debug-stages";
+import { attemptTiming, debugStages } from "./debug-stages";
 
 function evidenceBlock(value: string) {
   const runs = value.match(/`+/g) ?? [];
@@ -41,6 +41,7 @@ function turnMarkdown(turn: Turn, index: number) {
     ...(turn.assistant?.parts.map(partMarkdown) ?? [`Attempt ${turn.state}.`]),
     `### Debug steps · Attempt ${turn.attempt}`,
     formatUsage(attemptUsage(turn.metrics)),
+    attemptTiming(turn),
     ...diagnostics,
   ].join("\n\n");
 }

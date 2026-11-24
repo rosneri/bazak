@@ -151,14 +151,14 @@ export function debugStages(turn: Turn): DebugStage[] {
         : "No planner measurements available.",
     ],
     ["Catalog lookup", catalogStatus(turn), stageInput(turn, "catalog"), catalogEvidence(turn)],
-    [
-      "Reply",
-      turn.state,
-      stageInput(turn, "reply"),
-      metrics
-        ? `${metrics.replyCalls} framing calls started · ${turn.state}\nFirst content: ${metrics.firstVisibleMs === null ? "none recorded" : metrics.firstVisibleMs + " ms"} · Total: ${metrics.durationMs} ms` +
-          modelUsage(turn, "reply", metrics.replyCalls)
-        : `Attempt ${turn.state}. No timing recorded.`,
-    ],
   ];
+}
+
+export function attemptTiming(turn: Turn) {
+  const metrics = turn.metrics;
+
+  if (!metrics) return `Attempt ${turn.state}. No timing recorded.`;
+  const first = metrics.firstVisibleMs === null ? "none recorded" : metrics.firstVisibleMs + " ms";
+
+  return `First content: ${first} · Total: ${metrics.durationMs} ms`;
 }

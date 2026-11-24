@@ -2,7 +2,7 @@
 
 ## Interface
 
-[routes.ts](./routes.ts) injects the build-selected services and the [logger](./logger.ts) into [createConversationController](./http.ts). The controller owns request validation and JSON and SSE responses. [services.ts](./services.ts) composes management, discovery and turn execution. [SDK](./sdk.ts) supplies structured intent, planner and streamed reply ports.
+[routes.ts](./routes.ts) injects the build-selected services and the [logger](./logger.ts) into [createConversationController](./http.ts). The controller owns request validation and JSON and SSE responses. [services.ts](./services.ts) composes management, discovery and turn execution. [SDK](./sdk.ts) supplies structured intent and query planning.
 
 ## Invariants
 
@@ -14,7 +14,7 @@ Every write requires an uncompressed JSON body of at most 64 KiB, received withi
 
 ## Side effects
 
-[Production](./services.production.ts) calls OpenAI and DummyJSON. [Fixture](./services.test.ts) uses seeded catalog and scripted models. A fixture-only file gate can hold the second approved sentence until the browser sees the first.
+[Production](./services.production.ts) calls OpenAI and DummyJSON. [Fixture](./services.test.ts) uses seeded catalog and scripted models. A fixture-only file gate can hold a catalog lookup until the browser shows its loading state.
 
 Client cancellation aborts in-progress application work and releases the event iterator. Server-side HTTP failures and terminal stream failures produce one error log with the operation, phase, code and HTTP status when available. Routine 4xx responses and normal client cancellation do not produce error logs.
 

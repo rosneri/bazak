@@ -858,16 +858,7 @@ components:
       description: Recorded operations and timings for the latest attempt. Page queries count as catalog calls and first content appears within the measured duration.
       additionalProperties: false
       required:
-        [
-          intentCalls,
-          plannerCalls,
-          catalogCalls,
-          replyCalls,
-          queries,
-          planner,
-          firstVisibleMs,
-          durationMs,
-        ]
+        [intentCalls, plannerCalls, catalogCalls, queries, planner, firstVisibleMs, durationMs]
       properties:
         usage:
           type: array
@@ -881,7 +872,7 @@ components:
               stage:
                 description: Model operation.
                 type: string
-                enum: [intent, planner, reply]
+                enum: [intent, planner]
               model:
                 description: Model identifier or local fixture.
                 type: string
@@ -924,7 +915,7 @@ components:
             properties:
               stage:
                 type: string
-                enum: [intent, decision, planner, catalog, reply]
+                enum: [intent, decision, planner, catalog]
                 description: Operation that received the input.
               name:
                 type: string
@@ -959,11 +950,6 @@ components:
           minimum: 0
           maximum: 9
           description: Number of catalog requests started, including failed requests.
-        replyCalls:
-          type: integer
-          minimum: 0
-          maximum: 1
-          description: Number of assistant reply streams started.
         queries:
           type: array
           description: Page queries attempted in order.

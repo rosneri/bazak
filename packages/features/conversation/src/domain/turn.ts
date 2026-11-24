@@ -95,7 +95,7 @@ export const attemptMetricsSchema = z
         z
           .strictObject({
             stage: z
-              .enum(["intent", "decision", "planner", "catalog", "reply"])
+              .enum(["intent", "decision", "planner", "catalog"])
               .describe("Operation that received the input."),
             name: z.string().describe("Name of the input at the operation boundary."),
             value: z.string().describe("JSON snapshot captured when the operation was invoked."),
@@ -119,7 +119,6 @@ export const attemptMetricsSchema = z
     catalogCalls: count
       .max(9)
       .describe("Number of catalog requests started, including failed requests."),
-    replyCalls: count.max(1).describe("Number of reply streams started."),
     queries: z.array(catalogQuerySchema).describe("Actual page queries attempted in order."),
     planner: z
       .array(
@@ -142,6 +141,42 @@ export const attemptMetricsSchema = z
     "Content cannot first appear after the attempt ends.",
   )
   .describe("Actual operations and timings for this attempt.");
+
+// Older persisted observations include a retired model stage. Normalize on read
+// so saved transcripts and evaluation imports remain usable without rewriting them.
+const retiredStage = z
+  .object({
+    stage: z.literal("reply").describe("Historical operation identifier."),
+  })
+  .describe("An observation for a retired operation.");
+
+const legacyMetricsSchema = z
+  .looseObject({
+    replyCalls: count.max(1).describe("Historical operation count."),
+    usage: z
+      .array(z.union([callUsageSchema, retiredStage]).describe("Historical call observation."))
+      .optional()
+      .describe("Model usage recorded by an earlier version."),
+    stepInputs: z
+      .array(
+        z
+          .union([attemptMetricsSchema.shape.stepInputs.unwrap().element, retiredStage])
+          .describe("Historical operation input."),
+      )
+      .optional()
+      .describe("Inputs recorded by an earlier version."),
+  })
+  .transform(({ replyCalls: _retired, usage, stepInputs, ...current }) => ({
+    ...current,
+    ...(usage && { usage: usage.filter((entry) => entry.stage !== "reply") }),
+    ...(stepInputs && { stepInputs: stepInputs.filter((entry) => entry.stage !== "reply") }),
+  }))
+  .pipe(attemptMetricsSchema)
+  .describe("Older observations projected onto current operations.");
+
+export const storedMetricsSchema = z
+  .union([attemptMetricsSchema, legacyMetricsSchema])
+  .describe("Persisted attempt observations expressed in the current metrics format.");
 
 const attempt = z.int().positive().describe("One-based attempt generation.");
 
@@ -166,7 +201,7 @@ export const turnSchema = z
     attempt,
     assistant: assistantMessageSchema.nullable().describe("Committed answer when complete."),
     decision: intentDecisionSchema.nullable().describe("Validated decision if available."),
-    metrics: attemptMetricsSchema.nullable().describe("Latest recorded observations."),
+    metrics: storedMetricsSchema.nullable().describe("Latest recorded observations."),
   })
   .refine(
     (t) => (t.state === "completed") === (t.assistant !== null),

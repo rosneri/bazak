@@ -5,7 +5,7 @@ import {
   summarizeCalls,
 } from "@bazak/conversation/domain/usage";
 import { z } from "zod";
-import { attemptMetricsSchema, groupSchema } from "@bazak/conversation/domain/turn";
+import { storedMetricsSchema, groupSchema } from "@bazak/conversation/domain/turn";
 import { intentDecisionSchema } from "@bazak/product-discovery/domain/discovery";
 import { caseSchema } from "@bazak/evaluations/cases";
 
@@ -31,7 +31,7 @@ export const observationSchema = z
     groups: z
       .array(groupSchema)
       .describe("Observed committed product groups in presentation order."),
-    metrics: attemptMetricsSchema
+    metrics: storedMetricsSchema
       .nullable()
       .describe("Recorded call counts, attempted queries and timings, when available."),
   })

@@ -3,7 +3,6 @@ import { randomUUID } from "node:crypto";
 import { test } from "node:test";
 import {
   createConversationService,
-  SAFE_FRAMING,
   type ContextTurn,
   type ConversationEvent,
   type ConversationModel,
@@ -28,7 +27,6 @@ const search: ModelDecision = { kind: "discover", searches: [fragranceSearch] };
 
 interface Options {
   decide?: ConversationModel["decide"];
-  reply?: ConversationModel["reply"];
   products?: ProductCatalog;
   storage?: Partial<ConversationRepository>;
 }
@@ -38,12 +36,6 @@ function setup(options: Options = {}) {
 
   const model: ConversationModel = {
     decide: options.decide ?? (async () => search),
-    reply:
-      options.reply ??
-      async function* () {
-        yield "Here’s what ";
-        yield "I found.";
-      },
   };
 
   const service = createConversationService({
@@ -134,10 +126,19 @@ test("a shopper can compare cheaper scents, replay the original prices and refre
     [14],
   );
   assert.equal(detail.find((e) => e.type === "products")?.part.group.products[0]?.stock, 0);
-  assert.equal(
-    first.flatMap((e) => (e.type === "text-delta" ? [e.text] : [])).join(""),
-    SAFE_FRAMING[0],
-  );
+
+  for (const events of [first, next, detail]) {
+    assert.deepEqual(
+      events.map((e) => e.type),
+      ["status", "lookup", "products", "done"],
+    );
+    const done = events.find((e) => e.type === "done");
+    assert.deepEqual(
+      done?.assistant.parts.map((p) => p.type),
+      ["products"],
+    );
+  }
+
   const replay = await drain(chat.send("Two fragrances under $50", turnId));
   assert.deepEqual(
     replay.map((e) => e.type),
@@ -165,9 +166,6 @@ test("one unavailable catalog group and a vague gift do not hide the successful 
 
         return catalog.findPage(query, signal);
       },
-    },
-    async *reply() {
-      yield "Every item costs exactly $1.";
     },
   });
 
@@ -202,12 +200,7 @@ test("vague, off-catalog and unseen product-detail requests make no catalog call
     chat.turns.map((t) => t.decision?.kind),
     ["clarify", "off-catalog", "clarify"],
   );
-  assert.ok(
-    chat.turns.every(
-      (t) =>
-        t.metrics?.catalogCalls === 0 && t.metrics.plannerCalls === 0 && t.metrics.replyCalls === 0,
-    ),
-  );
+  assert.ok(chat.turns.every((t) => t.metrics?.catalogCalls === 0 && t.metrics.plannerCalls === 0));
 });
 
 test("catalog searches use witnessed product terms or a known category", async () => {
@@ -309,36 +302,11 @@ test("only failed groups in the projected thread context can be retried", async 
   assert.equal(catalogCalls, 3);
 });
 
-test("an interrupted provider leaves a preview, and retry saves one answer under the original message", async () => {
-  let firstAttempt = true;
-
-  const chat = setup({
-    async *reply() {
-      yield SAFE_FRAMING[0];
-
-      if (firstAttempt) {
-        firstAttempt = false;
-        throw new Error("Provider stream ended early.");
-      }
-    },
-  });
-
-  const turnId = randomUUID();
-  const preview = await drain(chat.send("two fragrances", turnId));
-  assert.ok(preview.some((e) => e.type === "products"));
-  assert.equal(preview.at(-1)?.type, "error");
-  assert.equal(chat.turns[0].assistant, null);
-  assert.equal(chat.turns[0].metrics?.firstVisibleMs, 0);
-  const retry = await drain(chat.service.retry(chat.id, turnId, 1));
-  assert.equal(retry.at(-1)?.type, "done");
-  assert.equal(chat.turns.length, 1);
-  assert.equal(chat.turns[0].attempt, 2);
-});
-
 test("closing a stream after the first cards marks the attempt interrupted", async () => {
   const chat = setup();
   const controller = new AbortController();
-  const stream = await chat.send("Two scents", randomUUID(), controller.signal);
+  const turnId = randomUUID();
+  const stream = await chat.send("Two scents", turnId, controller.signal);
 
   for await (const e of stream) {
     if (e.type === "products") {
@@ -349,6 +317,10 @@ test("closing a stream after the first cards marks the attempt interrupted", asy
 
   assert.equal(chat.turns[0].state, "interrupted");
   assert.equal(chat.turns[0].assistant, null);
+  const retried = await drain(chat.service.retry(chat.id, turnId, 1));
+  assert.equal(retried.at(-1)?.type, "done");
+  assert.equal(chat.turns.length, 1);
+  assert.equal(chat.turns[0].attempt, 2);
 });
 
 test("a rejected completion produces a recoverable error after the preview", async () => {
@@ -366,28 +338,5 @@ test("a rejected completion produces a recoverable error after the preview", asy
   assert.equal(
     stream.some((e) => e.type === "done"),
     false,
-  );
-});
-
-test("approved sentence prefixes stream as they arrive and replay as one passage", async () => {
-  const chat = setup({
-    async *reply() {
-      yield "Here’s what ";
-      yield "I found. A bottle costs $17. Would you ";
-      yield "like to narrow the search?";
-    },
-  });
-
-  const turnId = randomUUID();
-  const stream = await drain(chat.send("Two fragrances", turnId));
-  assert.deepEqual(
-    stream.flatMap((event) => (event.type === "text-delta" ? [event.text] : [])),
-    ["Here’s what", " I found.", " Would you", " like to narrow the search?"],
-  );
-  const replay = await drain(chat.send("Two fragrances", turnId));
-  const done = replay.find((event) => event.type === "done");
-  assert.deepEqual(
-    done?.assistant.parts.filter((part) => part.type === "text"),
-    [{ type: "text", text: SAFE_FRAMING.join(" ") }],
   );
 });

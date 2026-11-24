@@ -8,7 +8,6 @@ import {
   conversation,
   status,
   results,
-  textDelta,
   done,
   events,
   baseline,
@@ -92,7 +91,6 @@ const savedHistory = {
         intentCalls: 1,
         plannerCalls: 0,
         catalogCalls: 1,
-        replyCalls: 1,
         queries: [{ source: { kind: "search", keywords: "lamp" }, offset: 0, limit: 2 }],
         planner: ["skipped"],
         firstVisibleMs: 100,
@@ -135,13 +133,8 @@ test("send streams versioned parts and committed completion as ordered UTF-8 dat
   assert.ok(cacheDirectives.includes("no-store"));
   assert.ok(cacheDirectives.includes("no-transform"));
   assert.equal(response.headers.get("X-Accel-Buffering"), "no");
-  assert.match(await response.clone().text(), /^(?:data: \{[^\n]+\}\n\n){4}$/);
-  assert.deepEqual(await Array.fromAsync(readTurnStream(response)), [
-    status,
-    results,
-    textDelta,
-    done,
-  ]);
+  assert.match(await response.clone().text(), /^(?:data: \{[^\n]+\}\n\n){3}$/);
+  assert.deepEqual(await Array.fromAsync(readTurnStream(response)), [status, results, done]);
   assert.deepEqual(errors, []);
 });
 

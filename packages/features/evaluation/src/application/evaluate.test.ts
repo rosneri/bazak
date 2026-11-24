@@ -10,7 +10,6 @@ const metrics = {
   intentCalls: 1,
   plannerCalls: 0,
   catalogCalls: 1,
-  replyCalls: 1,
   queries: [],
   planner: [],
   firstVisibleMs: 20,

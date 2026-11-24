@@ -8,7 +8,6 @@ import {
   origin,
   status,
   results,
-  textDelta,
   done,
   events,
   baseline,
@@ -140,7 +139,7 @@ test("same-origin browser headers and UTF-8 JSON are accepted", async () => {
     { id },
   );
 
-  assert.deepEqual(await Array.fromAsync(readTurnStream(sent)), [status, results, textDelta, done]);
+  assert.deepEqual(await Array.fromAsync(readTurnStream(sent)), [status, results, done]);
 });
 
 test("a declared over-limit body is rejected before reading it", async () => {

@@ -2,13 +2,9 @@ import { reportUsage, modelId } from "./token-usage.ts";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { openai } from "@ai-sdk/openai";
-import { generateText, Output, streamText } from "ai";
+import { generateText, Output } from "ai";
 import { z } from "zod";
-import {
-  modelDecisionSchema,
-  SAFE_FRAMING,
-  type ConversationModel,
-} from "@bazak/conversation/application/chat";
+import { modelDecisionSchema, type ConversationModel } from "@bazak/conversation/application/chat";
 import {
   plannerProposalsSchema,
   type QueryPlanner,
@@ -140,38 +136,6 @@ export const model: ConversationModel = {
           : group,
       ),
     });
-  },
-  async *reply(signal, observe, usage) {
-    const messages = {
-      prompt:
-        "Output exactly these two short sentences, including their punctuation: " +
-        SAFE_FRAMING.join(" "),
-    };
-
-    observe?.(messages);
-
-    const result = streamText({
-      model: languageModel(),
-      abortSignal: signal,
-      maxRetries: 0,
-      maxOutputTokens: 512,
-      providerOptions: options,
-      onLanguageModelCallEnd: (event) => reportUsage(event.usage, usage),
-      ...messages,
-      onError: () => {},
-    });
-
-    let finished = false;
-
-    for await (const chunk of result.fullStream) {
-      if (chunk.type === "text-delta") yield chunk.text;
-
-      if (chunk.type === "error" || chunk.type === "abort") throw new Error("Reply interrupted.");
-
-      if (chunk.type === "finish") finished = chunk.finishReason === "stop";
-    }
-
-    if (!finished) throw new Error("Incomplete provider reply.");
   },
 };
 
