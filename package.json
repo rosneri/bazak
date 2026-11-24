@@ -8,7 +8,7 @@
     "start": "pnpm --filter @bazak/web start",
     "typecheck": "moon run :typecheck",
     "prepare": "lefthook install",
-    "lint": "oxlint --deny-warnings .",
+    "lint": "oxlint --deny-warnings . && node --test tools/oxlint/require-named-effect.test.mjs",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "doctor": "react-doctor --yes --scope full --blocking warning --no-telemetry --no-supply-chain",

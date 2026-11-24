@@ -1,6 +1,25 @@
 import { randomUUID } from "node:crypto";
 import type { ConversationRepository } from "@bazak/conversation/application/repository";
-import type { Turn } from "@bazak/conversation/domain/turn";
+import type { Turn, SendTurnInput } from "@bazak/conversation/domain/turn";
+
+function acquireFixtureTurn(turns: Turn[], input: SendTurnInput) {
+  const previous = turns.find((t) => t.turnId === input.turnId);
+
+  if (previous) return { accepted: false, turn: previous };
+
+  const turn: Turn = {
+    ...input,
+    state: "running",
+    attempt: 1,
+    assistant: null,
+    metrics: null,
+    decision: null,
+  };
+
+  turns.push(turn);
+
+  return { accepted: true, turn };
+}
 
 export function testRepository() {
   const now = "2026-11-23T12:00:00.000Z";
@@ -29,22 +48,7 @@ export function testRepository() {
       return [];
     },
     async beginTurn(_id, input) {
-      const previous = turns.find((t) => t.turnId === input.turnId);
-
-      if (previous) return { accepted: false, turn: previous };
-
-      const turn: Turn = {
-        ...input,
-        state: "running",
-        attempt: 1,
-        assistant: null,
-        metrics: null,
-        decision: null,
-      };
-
-      turns.push(turn);
-
-      return { accepted: true, turn };
+      return acquireFixtureTurn(turns, input);
     },
     async beginRetry(_id, turnId, expected) {
       const turn = get(turnId);

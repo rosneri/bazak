@@ -25,6 +25,7 @@ The rule modules analyze JavaScript and TypeScript syntax through Oxlint. The
 | [`no-unknown-type-aliases`](./no-unknown-type-aliases.ts) | Type aliases whose resolved type is or contains `unknown` at the top level. |
 | [`no-unsafe-dictionary-type`](./no-unsafe-dictionary-type.ts) | Dictionaries whose direct value type is broad, such as `unknown`, `any`, `object`, or an empty object type. |
 | [`no-widen-then-assert`](./no-widen-then-assert.ts) | A known value widened in a local `const` binding and later asserted to a narrower type in the same function boundary. |
+| [`require-named-effect`](./require-named-effect.ts) | A React useEffect callback with anonymous inline logic. Use a named callback or delegate to one function call. |
 | [`require-readable-spacing`](./require-readable-spacing.ts) | Missing structural blank lines. |
 | [`require-safety-comment-for-type-assertion`](./require-safety-comment-for-type-assertion.ts) | Non-const assertions without a nearby comment carrying the configured justification marker. |
 

@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   createConversationService,
   SAFE_FRAMING,
+  type ContextTurn,
   type ConversationEvent,
   type ConversationModel,
   type ModelDecision,
@@ -231,21 +232,25 @@ test("catalog searches use witnessed product terms or a known category", async (
   assert.equal(events.at(-1)?.type, "done");
 });
 
+function assertRetryableLampGroups(history: ContextTurn[]) {
+  const [turn] = history;
+  assert.deepEqual(Object.keys(turn).sort(), ["groups", "text"]);
+  assert.deepEqual(
+    turn.groups.map(({ label, retryGroup }) => [label, retryGroup]),
+    [
+      ["Desk lamp", 0],
+      ["Floor lamp", 1],
+    ],
+  );
+}
+
 test("only failed groups in the projected thread context can be retried", async () => {
   let catalogCalls = 0;
 
   const chat = setup({
     async decide({ text, history }) {
       if (text.includes("Try")) {
-        const [turn] = history;
-        assert.deepEqual(Object.keys(turn).sort(), ["groups", "text"]);
-        assert.deepEqual(
-          turn.groups.map(({ label, retryGroup }) => [label, retryGroup]),
-          [
-            ["Desk lamp", 0],
-            ["Floor lamp", 1],
-          ],
-        );
+        assertRetryableLampGroups(history);
 
         return { kind: "retry-group", group: text.includes("floor") ? 1 : 2 };
       }

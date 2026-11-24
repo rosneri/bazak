@@ -1,5 +1,6 @@
-import { approvedFraming } from "#application/framing";
-import { recentContext, resolveReferences, type ContextTurn } from "#application/context";
+import { streamTurnResponse, type TurnResponse } from "#application/turn-response";
+import { resolveReferences } from "#application/resolve-references";
+import { recentContext, type ContextTurn } from "#application/context";
 import {
   maxContextTurns,
   modelDecisionSchema,
@@ -18,19 +19,11 @@ import {
   idSchema,
   retryTurnInputSchema,
   sendTurnInputSchema,
-  type AssistantMessage,
-  type AttemptMetrics,
-  type MessagePart,
-  type ResultGroup,
   type SendTurnInput,
   type Turn,
   type TurnEvent,
 } from "@bazak/conversation/domain/turn";
-import {
-  planGroups,
-  type QueryPlanner,
-  type SearchGroup,
-} from "@bazak/conversation/application/query-planner";
+import type { QueryPlanner } from "#application/query-planner";
 import {
   RepositoryError,
   type Acquisition,
@@ -63,7 +56,7 @@ export interface ConversationModel {
   reply(signal: AbortSignal): AsyncIterable<string>;
 }
 
-interface Dependencies {
+export interface ConversationDependencies {
   repository: ConversationRepository;
   model: ConversationModel;
   queryPlanner: QueryPlanner;
@@ -71,21 +64,7 @@ interface Dependencies {
   clock: Clock;
 }
 
-const scopeGuidance =
-  "I can help you find products in the catalog. What would you like to shop for?";
-
 const leaseMs = 90_000;
-
-function guidance(group: Exclude<SearchGroup, { kind: "search" }>): ResultGroup {
-  return {
-    kind: group.kind,
-    label: group.label,
-    criteria: null,
-    products: [],
-    coverage: null,
-    message: group.kind === "clarify" ? group.question : scopeGuidance,
-  };
-}
 
 function failureCode(cause: unknown): TurnErrorCode {
   if (cause instanceof RepositoryError) return cause.code;
@@ -96,202 +75,188 @@ function failureCode(cause: unknown): TurnErrorCode {
   return "attempt_failed";
 }
 
-export function createConversationService(deps: Dependencies) {
-  const { clock, repository, model, queryPlanner, discovery } = deps;
+interface TurnAttempt extends TurnResponse {
+  turn: Turn;
+  attemptNumber: number;
+  decision: IntentDecision | null;
+  elapsed(): number;
+}
 
-  async function* events(
-    id: string,
-    acquisition: Acquisition,
-    started: number,
-    caller?: AbortSignal,
-  ): AsyncGenerator<ConversationEvent> {
-    const { turn, accepted } = acquisition;
-    const { turnId, attempt } = turn;
+function startAttempt(
+  deps: ConversationDependencies,
+  id: string,
+  turn: Turn,
+  started: number,
+  caller?: AbortSignal,
+): TurnAttempt {
+  const { clock } = deps;
+  const remaining = started + leaseMs - clock().getTime();
+  const timeout = remaining > 0 ? AbortSignal.timeout(remaining) : AbortSignal.abort();
+  const signal = caller ? AbortSignal.any([caller, timeout]) : timeout;
 
-    if (!accepted) {
-      yield { type: "status", turnId, attempt, state: turn.state };
+  const metrics: TurnResponse["metrics"] = {
+    intentCalls: 0,
+    plannerCalls: 0,
+    catalogCalls: 0,
+    replyCalls: 0,
+    planner: [],
+    queries: [],
+    firstVisibleMs: null,
+    durationMs: 0,
+  };
 
-      if (turn.assistant && turn.state === "completed")
-        yield { type: "done", turnId, assistant: turn.assistant };
+  const elapsed = () => Math.max(0, clock().getTime() - started);
 
-      return;
-    }
+  const markVisible = () => {
+    metrics.firstVisibleMs ??= elapsed();
+  };
 
-    const remaining = started + leaseMs - clock().getTime();
-    const timeout = remaining > 0 ? AbortSignal.timeout(remaining) : AbortSignal.abort();
-    const signal = caller ? AbortSignal.any([caller, timeout]) : timeout;
+  return {
+    deps,
+    id,
+    turn,
+    turnId: turn.turnId,
+    attemptNumber: turn.attempt,
+    signal,
+    metrics,
+    elapsed,
+    markVisible,
+    parts: [],
+    decision: null,
+  };
+}
 
-    const metrics: AttemptMetrics = {
-      intentCalls: 0,
-      plannerCalls: 0,
-      catalogCalls: 0,
-      replyCalls: 0,
-      planner: [],
-      queries: [],
-      firstVisibleMs: null,
-      durationMs: 0,
-    };
+async function interpretTurn(attempt: TurnAttempt) {
+  const {
+    deps: { repository, clock, model },
+    id,
+    signal,
+    turnId,
+    turn,
+    metrics,
+  } = attempt;
 
-    const elapsed = () => Math.max(0, clock().getTime() - started);
+  const saved = await bounded(() => repository.load(id, clock().toISOString()), signal);
+  const parsed = conversationHistorySchema.safeParse(saved);
 
-    const visible = () => {
-      metrics.firstVisibleMs ??= elapsed();
-    };
+  if (!parsed.success) throw new RepositoryError("corrupt_thread");
+  const history: Turn[] = [];
 
-    const parts: MessagePart[] = [];
-    let decision: IntentDecision | null = null;
-    let settled = false;
+  for (const prior of parsed.data.turns) {
+    if (prior.turnId === turnId) break;
 
-    const fail = async (state: "failed" | "interrupted") => {
-      metrics.durationMs = elapsed();
-      await repository.fail(id, turnId, attempt, clock().toISOString(), state, metrics, decision);
-    };
-
-    try {
-      yield { type: "status", turnId, attempt, state: "running" };
-      const saved = await bounded(() => repository.load(id, clock().toISOString()), signal);
-      const parsed = conversationHistorySchema.safeParse(saved);
-
-      if (!parsed.success) throw new RepositoryError("corrupt_thread");
-      const history: Turn[] = [];
-
-      for (const prior of parsed.data.turns) {
-        if (prior.turnId === turnId) break;
-
-        if (prior.state === "completed") history.push(prior);
-      }
-
-      const intentSignal = stageSignal(signal, 20_000);
-      metrics.intentCalls++;
-
-      const recent = history.slice(-maxContextTurns);
-
-      const interpreted = modelDecisionSchema.parse(
-        await bounded(
-          () => model.decide({ text: turn.text, history: recentContext(recent) }, intentSignal),
-          intentSignal,
-        ),
-      );
-
-      decision = intentDecisionSchema.parse(resolveReferences(interpreted, turn.text, recent));
-
-      if (decision.kind === "clarify" || decision.kind === "off-catalog") {
-        const text = decision.kind === "clarify" ? decision.question : scopeGuidance;
-        parts.push({ type: "text", text });
-        visible();
-        yield { type: "text-delta", turnId, text };
-      } else {
-        if (decision.kind === "discover") {
-          const groups = decision.searches;
-          const planning = stageSignal(signal, 8_000);
-          const plans = await planGroups(groups, id, repository, queryPlanner, metrics, planning);
-          const retrieval = stageSignal(signal, 25_000);
-
-          for (const [index, group] of groups.entries()) {
-            signal.throwIfAborted();
-            const plan = plans.get(index);
-            let result: ResultGroup;
-
-            if (group.kind !== "search") result = guidance(group);
-            else if (plan?.question)
-              result = {
-                ...guidance({ kind: "clarify", label: group.label, question: plan.question }),
-                criteria: group.criteria,
-              };
-            else
-              // Each group is delivered before requesting the next group.
-              // oxlint-disable-next-line no-await-in-loop
-              result = await bounded(
-                () =>
-                  discovery.lookup(
-                    { label: group.label, criteria: group.criteria, hint: plan?.hint },
-                    retrieval,
-                    (query) => {
-                      metrics.catalogCalls++;
-                      metrics.queries.push(query);
-                    },
-                  ),
-                retrieval,
-              );
-            const part = { type: "products", version: 1, group: result } as const;
-            parts.push(part);
-            visible();
-            yield { type: "products", turnId, part };
-          }
-        } else if (decision.kind === "detail") {
-          const retrieval = stageSignal(signal, 25_000);
-          metrics.catalogCalls++;
-
-          const productId = decision.productId;
-          const snapshot = await bounded(() => discovery.detail(productId, retrieval), retrieval);
-
-          const result: ResultGroup = snapshot
-            ? {
-                kind: "matched",
-                label: snapshot.title,
-                criteria: null,
-                products: [snapshot],
-                coverage: "exhaustive",
-                message: `The catalog currently lists this item at $${snapshot.price.toFixed(2)} with ${snapshot.stock} in stock.`,
-              }
-            : {
-                kind: "empty",
-                label: "Product details",
-                criteria: null,
-                products: [],
-                coverage: "exhaustive",
-                message: "The catalog no longer lists this product.",
-              };
-
-          const part = { type: "products", version: 1, group: result } as const;
-          parts.push(part);
-          visible();
-          yield { type: "products", turnId, part };
-        } else throw new Error("Unresolved reference.");
-        signal.throwIfAborted();
-        const replySignal = stageSignal(signal, 25_000);
-        metrics.replyCalls++;
-
-        let framing = "";
-
-        for await (const phrase of approvedFraming(model.reply(replySignal), replySignal)) {
-          framing += phrase;
-          visible();
-          yield { type: "text-delta", turnId, text: phrase };
-        }
-
-        if (framing) parts.push({ type: "text", text: framing });
-      }
-
-      signal.throwIfAborted();
-      const assistant: AssistantMessage = assistantMessageSchema.parse({ parts });
-      metrics.durationMs = elapsed();
-      await repository.finish(
-        id,
-        turnId,
-        attempt,
-        clock().toISOString(),
-        assistant,
-        metrics,
-        decision,
-      );
-      settled = true;
-      yield { type: "done", turnId, assistant };
-    } catch (error) {
-      let code = failureCode(error);
-
-      try {
-        await fail(signal.aborted ? "interrupted" : "failed");
-      } catch (storageError) {
-        code = storageError instanceof RepositoryError ? storageError.code : "storage_unavailable";
-      }
-
-      settled = true;
-      yield { type: "error", turnId, code };
-    } finally {
-      if (!settled) await fail("interrupted");
-    }
+    if (prior.state === "completed") history.push(prior);
   }
+
+  const intentSignal = stageSignal(signal, 20_000);
+  metrics.intentCalls++;
+
+  const recent = history.slice(-maxContextTurns);
+
+  const interpreted = modelDecisionSchema.parse(
+    await bounded(
+      () => model.decide({ text: turn.text, history: recentContext(recent) }, intentSignal),
+      intentSignal,
+    ),
+  );
+
+  return intentDecisionSchema.parse(resolveReferences(interpreted, turn.text, recent));
+}
+
+async function failAttempt(attempt: TurnAttempt, state: "interrupted" | "failed") {
+  const {
+    deps: { clock, repository },
+    turnId,
+    attemptNumber,
+    id,
+    metrics,
+    decision,
+  } = attempt;
+
+  metrics.durationMs = attempt.elapsed();
+  await repository.fail(id, turnId, attemptNumber, clock().toISOString(), state, metrics, decision);
+}
+
+async function recordAttemptError(
+  attempt: TurnAttempt,
+  code: TurnErrorCode,
+): Promise<TurnErrorCode> {
+  try {
+    await failAttempt(attempt, attempt.signal.aborted ? "interrupted" : "failed");
+
+    return code;
+  } catch (storageError) {
+    return storageError instanceof RepositoryError ? storageError.code : "storage_unavailable";
+  }
+}
+
+async function completeAttempt(attempt: TurnAttempt, decision: IntentDecision) {
+  const {
+    deps: { repository, clock },
+    metrics,
+    id,
+    turnId,
+    attemptNumber,
+    signal,
+    parts,
+  } = attempt;
+
+  signal.throwIfAborted();
+  const assistant = assistantMessageSchema.parse({ parts });
+  metrics.durationMs = attempt.elapsed();
+  await repository.finish(
+    id,
+    turnId,
+    attemptNumber,
+    clock().toISOString(),
+    assistant,
+    metrics,
+    decision,
+  );
+
+  return assistant;
+}
+
+async function* streamTurnEvents(
+  deps: ConversationDependencies,
+  id: string,
+  acquisition: Acquisition,
+  started: number,
+  caller?: AbortSignal,
+): AsyncGenerator<ConversationEvent> {
+  const { turn, accepted } = acquisition;
+  const { turnId, attempt } = turn;
+
+  if (!accepted) {
+    yield { type: "status", turnId, attempt, state: turn.state };
+
+    if (turn.assistant && turn.state === "completed")
+      yield { type: "done", turnId, assistant: turn.assistant };
+
+    return;
+  }
+
+  const run = startAttempt(deps, id, turn, started, caller);
+  let settled = false;
+
+  try {
+    yield { type: "status", turnId, attempt, state: "running" };
+    run.decision = await interpretTurn(run);
+    yield* streamTurnResponse(run, run.decision);
+    const assistant = await completeAttempt(run, run.decision);
+    settled = true;
+    yield { type: "done", turnId, assistant };
+  } catch (error) {
+    const code = await recordAttemptError(run, failureCode(error));
+    settled = true;
+    yield { type: "error", turnId, code };
+  } finally {
+    if (!settled) await failAttempt(run, "interrupted");
+  }
+}
+
+export function createConversationService(deps: ConversationDependencies) {
+  const { clock, repository } = deps;
 
   return {
     async send(id: string, input: SendTurnInput, signal?: AbortSignal) {
@@ -304,7 +269,7 @@ export function createConversationService(deps: Dependencies) {
         new Date(start.getTime() + leaseMs).toISOString(),
       );
 
-      return events(id, acquisition, start.getTime(), signal);
+      return streamTurnEvents(deps, id, acquisition, start.getTime(), signal);
     },
     async retry(id: string, turnId: string, expectedAttempt: number, signal?: AbortSignal) {
       const start = clock();
@@ -318,7 +283,7 @@ export function createConversationService(deps: Dependencies) {
         new Date(start.getTime() + leaseMs).toISOString(),
       );
 
-      return events(id, acquisition, start.getTime(), signal);
+      return streamTurnEvents(deps, id, acquisition, start.getTime(), signal);
     },
   };
 }

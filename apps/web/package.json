@@ -8,7 +8,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "build:fixture": "SHOPPER_BUILD_PROFILE=fixture next build",
     "start:fixture": "SHOPPER_BUILD_PROFILE=fixture next start --hostname 127.0.0.1",
-    "test": "tsx --test src/server/http.test.ts src/client/stream.test.ts"
+    "test": "tsx --test src/server/*.test.ts src/client/*.test.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "4.0.122",

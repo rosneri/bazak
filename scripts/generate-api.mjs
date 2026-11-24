@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { cp, mkdtemp, readdir, rm } from "node:fs/promises";
+import { cp, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { generate } from "orval";
 
@@ -43,10 +43,11 @@ try {
         },
       },
       output: {
+        mode: "tags",
         client: "react-query",
         httpClient: "fetch",
         target: join(output, "hooks.ts"),
-        schemas: { type: "zod", mode: "single", path: join(output, "models.ts") },
+        schemas: { type: "zod", mode: "split", path: join(output, "schemas") },
         packageJson: join(web, "package.json"),
         tsconfig: join(web, "tsconfig.json"),
         urlEncodeParameters: true,
@@ -69,6 +70,11 @@ try {
     { throwOnError: true },
   );
 
+  await writeFile(join(output, "models.ts"), 'export * from "./schemas";\n');
+  await writeFile(
+    join(output, "hooks.ts"),
+    'export * from "./conversations";\nexport * from "./history";\nexport * from "./turns";\n',
+  );
   execFileSync("oxfmt", ["--write", output], { stdio: "inherit" });
 
   if (check) {
@@ -79,11 +85,15 @@ try {
     // Publish only after Orval and the formatter have both succeeded.
     await cp(output, generated, { recursive: true });
 
-    const written = new Set(await readdir(output));
+    const written = new Set(await readdir(output, { recursive: true }));
 
-    const obsolete = (await readdir(generated)).filter((name) => !written.has(name));
+    const obsolete = (await readdir(generated, { recursive: true })).filter(
+      (name) => !written.has(name),
+    );
 
-    await Promise.all(obsolete.map((name) => rm(join(generated, name), { recursive: true })));
+    await Promise.all(
+      obsolete.map((name) => rm(join(generated, name), { recursive: true, force: true })),
+    );
   }
 } finally {
   await rm(output, { recursive: true, force: true });
