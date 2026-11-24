@@ -1,20 +1,22 @@
-/* Hallmark · Furrow · shape: app screen · warm paper, dark ink and an orange send key. Signature: saved catalog cards in a threaded shopping desk. */
+@import "./composer.css";
+
+/* Hallmark · Furrow · shape: app screen · warm charcoal, pale ink and an orange send key. Signature: saved catalog cards in a threaded shopping desk. */
 :root {
-  --paper: #f6f4ef;
-  --sheet: #fffefa;
-  --ink: #282721;
-  --soft-ink: #5d5b51;
-  --rule: #d7d4c9;
+  --paper: #171612;
+  --sheet: #211f1a;
+  --ink: #f4f0e6;
+  --soft-ink: #c2baaa;
+  --rule: #4c483e;
   --signal: #fb955c;
-  --tint: #fff0e4;
-  --focus: #aa4424;
-  --hover: #ebe8de;
-  --selected: #e8e4d9;
-  --composer-rule: #aaa69a;
-  --composer-shadow: #3127190b;
-  --signal-rule: #df814d;
-  --signal-hover: #f68648;
-  --menu-shadow: #28272116;
+  --tint: #3e2d22;
+  --focus: #ffb486;
+  --hover: #302d26;
+  --selected: #403b31;
+  --composer-rule: #807768;
+  --composer-shadow: #00000038;
+  --signal-rule: #f5a579;
+  --signal-hover: #ffa879;
+  --menu-shadow: #f4f0e616;
   --body-face: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --mark-face: Georgia, serif;
 }
@@ -264,6 +266,7 @@ body {
   gap: 12px;
   padding: 16px;
   background: var(--sheet);
+  color: var(--ink);
   border-color: var(--rule);
 }
 .product-media {
@@ -329,53 +332,6 @@ body {
 }
 .notice a {
   text-decoration: underline;
-}
-.composer-dock {
-  padding-block: 12px max(20px, env(safe-area-inset-bottom));
-}
-.composer {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  border: 1px solid var(--composer-rule);
-  padding: 12px;
-  border-radius: 12px;
-  background: var(--sheet);
-  box-shadow: 0 3px 15px var(--composer-shadow);
-}
-.composer:focus-within {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
-.composer textarea {
-  width: 100%;
-  min-width: 0;
-  resize: none;
-  padding: 4px;
-  outline: none;
-  font: inherit;
-  line-height: 1.45;
-  background: transparent;
-  color: var(--ink);
-}
-.composer textarea::placeholder {
-  color: var(--soft-ink);
-}
-.send {
-  min-height: 40px;
-  padding: 0 16px;
-  background: var(--signal);
-  color: var(--ink);
-  border: 1px solid var(--signal-rule);
-}
-.send:not(:disabled):hover {
-  background: var(--signal-hover);
-}
-.send:disabled {
-  background: var(--paper);
-  color: var(--soft-ink);
-  border-color: var(--rule);
-  cursor: not-allowed;
 }
 .shop-shell :where(a, button):focus-visible {
   outline: 2px solid var(--focus);
