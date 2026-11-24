@@ -34,7 +34,7 @@
   min-height: 40px;
   padding: 0 16px;
   background: var(--signal);
-  color: var(--paper);
+  color: light-dark(var(--ink), var(--paper));
   border: 1px solid var(--signal-rule);
 }
 .send:not(:disabled):hover {

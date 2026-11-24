@@ -24,5 +24,18 @@ for (const [app, port] of [
 
     expect(background).toBeLessThan(64);
     expect(foreground).toBeGreaterThan(192);
+
+    const toggle = page.getByRole("switch", { name: "Dark mode" });
+    await expect(toggle).toBeChecked();
+    await toggle.focus();
+    await page.keyboard.press("Space");
+    await expect(page.locator("html")).toHaveCSS("color-scheme", "light");
+    await page.reload();
+    await expect(toggle).not.toBeChecked();
+    await expect(page.locator("html")).toHaveCSS("color-scheme", "light");
+    await toggle.click();
+    await page.reload();
+    await expect(toggle).toBeChecked();
+    await expect(page.locator("html")).toHaveCSS("color-scheme", "dark");
   });
 }

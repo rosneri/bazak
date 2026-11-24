@@ -1,3 +1,6 @@
+import { cookies } from "next/headers";
+import { ThemeDocument } from "@bazak/ui/components/theme-switch";
+import { readTheme, themeCookie } from "@bazak/ui/lib/theme";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { ShopperQueryProvider } from "@/src/client/query-provider";
@@ -11,12 +14,12 @@ export const metadata: Metadata = {
   description: "Find products and compare catalog prices in a saved conversation.",
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const theme = readTheme((await cookies()).get(themeCookie)?.value);
+
   return (
-    <html lang="en" className="dark">
-      <body>
-        <ShopperQueryProvider>{children}</ShopperQueryProvider>
-      </body>
-    </html>
+    <ThemeDocument initialTheme={theme}>
+      <ShopperQueryProvider>{children}</ShopperQueryProvider>
+    </ThemeDocument>
   );
 }

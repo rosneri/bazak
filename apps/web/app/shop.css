@@ -2,27 +2,23 @@
 
 /* Hallmark · Furrow · shape: app screen · warm charcoal, pale ink and an orange send key. Signature: saved catalog cards in a threaded shopping desk. */
 :root {
-  --paper: #171612;
-  --sheet: #211f1a;
-  --ink: #f4f0e6;
-  --soft-ink: #c2baaa;
-  --rule: #4c483e;
+  --paper: light-dark(#f6f4ef, #171612);
+  --sheet: light-dark(#fffefa, #211f1a);
+  --ink: light-dark(#282721, #f4f0e6);
+  --soft-ink: light-dark(#5d5b51, #c2baaa);
+  --rule: light-dark(#d7d4c9, #4c483e);
   --signal: #fb955c;
-  --tint: #3e2d22;
-  --focus: #ffb486;
-  --hover: #302d26;
-  --selected: #403b31;
-  --composer-rule: #807768;
-  --composer-shadow: #00000038;
-  --signal-rule: #f5a579;
-  --signal-hover: #ffa879;
-  --menu-shadow: #f4f0e616;
+  --tint: light-dark(#fff0e4, #3e2d22);
+  --focus: light-dark(#aa4424, #ffb486);
+  --hover: light-dark(#ebe8de, #302d26);
+  --selected: light-dark(#e8e4d9, #403b31);
+  --composer-rule: light-dark(#aaa69a, #807768);
+  --composer-shadow: light-dark(#3127190b, #00000038);
+  --signal-rule: light-dark(#df814d, #f5a579);
+  --signal-hover: light-dark(#f68648, #ffa879);
+  --menu-shadow: light-dark(#28272116, #00000060);
   --body-face: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --mark-face: Georgia, serif;
-}
-html,
-body {
-  overflow-x: clip;
 }
 body {
   margin: 0;
@@ -347,7 +343,7 @@ body {
   }
   .history-toggle {
     display: inline-flex;
-    margin-left: auto;
+    margin-left: 0;
   }
   .sidebar {
     display: none;
@@ -383,4 +379,11 @@ body {
 
 .shop-shell :where(button, a):active:not(:disabled) {
   transform: translateY(1px);
+}
+
+@media (max-width: 24rem) {
+  .mast-title,
+  .mast-divider {
+    display: none;
+  }
 }
