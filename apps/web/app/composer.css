@@ -1,0 +1,48 @@
+/* Hallmark · Furrow · shopper composer with an orange send key. */
+.composer-dock {
+  padding-block: 12px max(20px, env(safe-area-inset-bottom));
+}
+.composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  border: 1px solid var(--composer-rule);
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--sheet);
+  box-shadow: 0 3px 15px var(--composer-shadow);
+}
+.composer:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.composer textarea {
+  width: 100%;
+  min-width: 0;
+  resize: none;
+  padding: 4px;
+  outline: none;
+  font: inherit;
+  line-height: 1.45;
+  background: transparent;
+  color: var(--ink);
+}
+.composer textarea::placeholder {
+  color: var(--soft-ink);
+}
+.send {
+  min-height: 40px;
+  padding: 0 16px;
+  background: var(--signal);
+  color: var(--paper);
+  border: 1px solid var(--signal-rule);
+}
+.send:not(:disabled):hover {
+  background: var(--signal-hover);
+}
+.send:disabled {
+  background: var(--paper);
+  color: var(--soft-ink);
+  border-color: var(--rule);
+  cursor: not-allowed;
+}
