@@ -4,6 +4,7 @@ import {
   type ProviderRequestObserver,
 } from "@bazak/product-discovery/application/catalog";
 import { productSnapshotSchema } from "@bazak/product-discovery/domain/product";
+import { CatalogHttpError, readWithRetry } from "#read-retry";
 import { z } from "zod";
 import { approvedCatalogThumbnail } from "@bazak/dummyjson/thumbnail";
 
@@ -111,29 +112,31 @@ function catalogPageUrl(input: z.input<typeof querySchema>) {
   return url;
 }
 
-function requestCatalog(
+function readCatalog<Schema extends z.ZodType>(
   fetchCatalog: typeof fetch,
   url: URL,
+  schema: Schema,
   signal?: AbortSignal,
   onRequest?: ProviderRequestObserver,
 ) {
-  onRequest?.(url.href);
+  return readWithRetry(async () => {
+    onRequest?.(url.href);
+    const response = await fetchCatalog(url, { signal, redirect: "error", cache: "no-store" });
 
-  return fetchCatalog(url, { signal, redirect: "error", cache: "no-store" });
+    if (!response.ok) {
+      void response.body?.cancel().catch(() => {});
+      throw new CatalogHttpError(response);
+    }
+
+    return readCatalogJson(response, schema, signal);
+  }, signal);
 }
 
 export function createDummyJsonCatalog(fetchCatalog: typeof fetch): ProductCatalog {
   return {
     async findPage(input, signal, onRequest) {
       const url = catalogPageUrl(input);
-      const response = await requestCatalog(fetchCatalog, url, signal, onRequest);
-
-      if (!response.ok) {
-        void response.body?.cancel().catch(() => {});
-        throw new Error(`DummyJSON catalog request failed with HTTP ${response.status}.`);
-      }
-
-      const page = await readCatalogJson(response, pageSchema, signal);
+      const page = await readCatalog(fetchCatalog, url, pageSchema, signal, onRequest);
       const observedAt = new Date().toISOString();
 
       return {
@@ -146,19 +149,16 @@ export function createDummyJsonCatalog(fetchCatalog: typeof fetch): ProductCatal
       const id = detailIdSchema.parse(rawId);
 
       const url = new URL("https://dummyjson.com/products/" + id);
-      const response = await requestCatalog(fetchCatalog, url, signal, onRequest);
 
-      if (!response.ok) {
-        void response.body?.cancel().catch(() => {});
-
-        if (response.status === 404) return null;
-        throw new Error(`DummyJSON catalog request failed with HTTP ${response.status}.`);
-      }
-
-      const product = snapshot(
-        await readCatalogJson(response, productSchema, signal),
-        new Date().toISOString(),
+      const record = await readCatalog(fetchCatalog, url, productSchema, signal, onRequest).catch(
+        (error) => {
+          if (error instanceof CatalogHttpError && error.response.status === 404) return null;
+          throw error;
+        },
       );
+
+      if (!record) return null;
+      const product = snapshot(record, new Date().toISOString());
 
       if (product.id !== id) throw new Error("DummyJSON returned a different product ID.");
 

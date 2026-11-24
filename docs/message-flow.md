@@ -54,9 +54,9 @@ flowchart TD
   plan --> check{"CODE · Validate group index and ground proposed keywords"}
   check -->|"Accepted hint or fallback to explicit criteria"| lookup
   check -->|"Accepted clarification"| fixed
-  lookup --> result["Stream each result group in request order"]
+  lookup --> result["Stream earlier groups and hold the final result"]
   detail --> result
-  result --> save["Validate and save answer, then send done"]
+  result --> save["Commit answer, stream final result, then send done"]
   fixed --> save
 ```
 
@@ -91,8 +91,8 @@ sequenceDiagram
   T-->>B: Stream lookup progress
   T->>C: Request catalog pages
   C-->>T: Product records
-  T-->>B: Stream ranked cards
   T->>D: Save answer including ordered product snapshots
+  T-->>B: Stream ranked cards
   T-->>B: Stream done with saved answer
   B->>T: Refresh saved conversation
   S->>B: Is the second one in stock?
@@ -106,11 +106,12 @@ sequenceDiagram
     T-->>B: Stream lookup progress
     T->>C: Fetch current product by ID
     C-->>T: Current record or missing product
-    T-->>B: Stream detail card if matched, or empty group if missing
+    T->>D: Save detail card or empty result
+    T-->>B: Stream the saved result
   else ID absent from recent cards
+    T->>D: Save clarification
     T-->>B: Stream question asking which product to check
   end
-  T->>D: Save follow-up answer
   T-->>B: Stream done
   B->>T: Refresh saved conversation
 ```
@@ -129,7 +130,7 @@ This example assumes the first search finds two products. The service gives the 
 
 ## 5. What survives a failure in diagram 4?
 
-The first durable write saves the shopper's message and opens an attempt. The second commits the complete assistant answer. Between them, the server holds result groups and text in memory and the browser shows a preview. **A shopper can see the second fragrance before the database has saved either card.**
+The first durable write saves the shopper's message and opens an attempt. The second commits the complete assistant answer. In diagram 4 each answer contains one result group. Both fragrance cards commit together before either appears. For a multi-group request, earlier groups can appear as previews while the final group is held until commit.
 
 ```mermaid
 stateDiagram-v2
@@ -150,7 +151,7 @@ If the server dies, the database can still say **running**. A successful thread 
 | Where it breaks                                                        | What happens to the turn                                                                                                                                                                                                                                                                                                                           | What the shopper sees or can do                                                                                                                                                           |
 | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Submit or create chat, before acceptance                               | Empty or busy submissions are gated in the UI. Invalid input, disallowed origin, wrong content type, oversized or timed-out body, or missing thread produces an HTTP error before a new attempt starts.                                                                                                                                            | Correct the request or reopen the chat. A storage outage can also prevent creation or loading.                                                                                            |
-| Create or send commits, but its acknowledgment is lost                 | Retrying creation with the same conversation ID returns the existing chat. Resending the same turn ID and text returns saved status, plus the answer if complete. The client holds pending IDs in memory.                                                                                                                                          | The mounted client can reconcile or resend safely. After a reload, check history first. Retyping the same text under a new ID creates another turn.                                       |
+| Create or send commits, but its acknowledgment is lost                 | Retrying creation with the same conversation ID returns the existing chat. Resending the same turn ID and text returns saved status, plus the answer if complete. The tab records the submitted text and both IDs in session storage before sending.                                                                                               | On refresh the browser checks history. An accepted turn reappears; a missing turn restores the draft for resending under its original ID. A failed history read leaves recovery pending.  |
 | Two tabs send or retry concurrently                                    | A per-thread PostgreSQL transaction lock serializes acquisition. A different new turn while one runs gets a busy conflict. Reusing an ID with changed text conflicts. A repeated retry with an old attempt number returns current state. A future number conflicts.                                                                                | A busy send leaves the draft available. A duplicate send while running gets status and can poll history. It does not attach to the original live stream.                                  |
 | Loading history, interpreting intent, or validating the decision fails | Unreadable history, missing model credentials, provider errors, intent timeout (20 seconds), or invalid structured output can fail the attempt. An unresolved product reference normally becomes a saved clarification. A plausible but incorrect reference to another displayed ID can pass validation.                                           | The shopper gets an error and can retry after the cause clears, or receives a clarification. A wrong-but-valid choice can look like a successful answer.                                  |
 | Preference history or optional AI planner fails                        | Missing evidence skips planning. A planner error, unusable proposal, or planner timeout (8 seconds) falls back to the explicit search criteria while the attempt remains active.                                                                                                                                                                   | The search can finish without personalization. No shopper action is required.                                                                                                             |
@@ -161,13 +162,12 @@ If the server dies, the database can still say **running**. A successful thread 
 | Final validation or database settlement fails                          | Answer, attempt outcome, metrics, search evidence and thread timestamp share a settlement transaction. A rollback leaves no partial completed answer. The service tries to record failure. If that write also fails, the attempt can remain running until expiry. If the commit succeeded but its acknowledgment was lost, the completed row wins. | An error here means the browser should read history. Repeating provider calls before checking could redo an answer already saved.                                                         |
 | Final stream event is lost, or history refresh fails                   | The server sends done only after commit. A successful history read recovers the full saved answer. While it sees running, the browser polls with backoff from 250 ms to 2 seconds, with a roughly 93-second polling window. A failed read exits that reconciliation pass.                                                                          | A lost final event alone costs no new model call. An offline browser or database outage leaves status uncertain until a later successful read. Refresh is available if polling stops.     |
 
-**Retry semantics.** Browser mutations and production AI SDK calls have automatic retries disabled. The catalog adapter issues individual reads without a retry loop. Browser polling rereads status. The Retry button creates another attempt for the same failed or interrupted turn. Asking “try that lookup again” creates a new turn targeting one saved lookup-error group. A whole-turn retry may incur new provider costs and produce different products, prices or wording.
+**Retry semantics.** Browser mutations and production AI SDK calls have automatic retries disabled. Each catalog GET can retry once after a connection failure or HTTP 429, 500, 502, 503 or 504. The adapter honors Retry-After within the shared retrieval deadline. Cancellation stops the retry. It records every physical GET, including retries. Browser polling rereads status. The Retry button creates another attempt for the same failed or interrupted turn. Asking “try that lookup again” creates a new turn targeting one saved lookup-error group. A whole-turn retry may incur new provider costs and produce different products, prices or wording.
 
 [Acquisition and deduplication](../packages/adapters/evaluation-store/src/turn-acquisition.ts) · [Lease expiry and locking](../packages/adapters/evaluation-store/src/thread-access.ts) · [Atomic settlement](../packages/adapters/evaluation-store/src/turn-settlement.ts) · [HTTP errors](../apps/web/src/server/http-failures.ts) · [Stream preview and reconciliation](../apps/web/src/client/turn-preview.ts)
 
 ### A recovery design for this shopper
 
-1. **Preserve pending submissions.** Persist pending conversation and turn IDs with the draft across reloads and clear them after reconciliation. Make pending, saved and interrupted results visibly distinct. These changes address accidental duplicate sends. They still leave a crash window before the answer commit.
 2. **If an accepted turn should finish after the shopper leaves, give execution to a durable worker.** In the transaction that accepts the message, also make work available to a worker. The simplest option here is a job row in the existing PostgreSQL database. The browser subscribes to progress. Disconnecting ends the subscription. An explicit cancel action would stop execution. This trades additional background work and cost for completion independent of the browser.
 3. **Checkpoint at boundaries the shopper can recognize.** Persist the validated intent and the inputs it depended on, then each completed result group with its ordered snapshots. Commit a group before publishing its cards. Give each group a stable key and each progress event a sequence number. A recovering worker reuses committed groups and starts at the first unfinished group. A reconnecting browser loads saved progress and deduplicates later events. This preserves the identity of “the second one” across a restart.
 4. **Bound replay and fence stale writers.** Claim jobs with expiring leases and an ownership generation. Fence every checkpoint and final write by that generation. Retry transient network failures, rate limits and eligible server errors with backoff, jitter and a finite budget. Respect provider retry delays. Surface permanent errors such as invalid configuration immediately. When the budget runs out, persist a terminal failure and the available recovery action. Keep collecting worker lag, stale leases, retries per stage and elapsed time until the shopper sees a terminal state.

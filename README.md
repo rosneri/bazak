@@ -27,7 +27,7 @@ Compose binds PostgreSQL to loopback port 55432 by default. Export matching `POS
 
 ## Architecture and framework choices
 
-The shopper is a Next.js App Router app. The browser submits a turn with a stable ID and reads server-sent events from that HTTP POST. The server sends each verified product group as it becomes available. Prices, availability and coverage come from catalog observations and application templates. A single versioned product part drives the same React card during streaming and replay.
+The shopper is a Next.js App Router app. The browser submits a turn with a stable ID and reads server-sent events from that HTTP POST. The server streams lookup progress and earlier verified groups immediately, then commits the answer before emitting its final result. The tab keeps unacknowledged submission IDs across refreshes. Prices, availability and coverage come from catalog observations and application templates. A single versioned product part drives the same React card during streaming and replay.
 
 We’re keeping the Vercel AI SDK and the assignment model, `gpt-6-luna`, for structured intent and optional planning. A direct OpenAI client would leave the integration to translate structured responses into validated application events. The model and catalog interfaces let fixtures exercise the same HTTP handlers, PostgreSQL transactions and UI. The wire format is local, with one supported product presentation.
 

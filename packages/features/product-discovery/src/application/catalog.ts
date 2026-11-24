@@ -50,3 +50,20 @@ export interface ProductCatalog {
     onRequest?: ProviderRequestObserver,
   ): Promise<CatalogPage>;
 }
+
+const retrievalMs = 25_000;
+
+const deadlines = new WeakMap<AbortSignal, number>();
+
+export function catalogReadSignal(parent: AbortSignal) {
+  const signal = AbortSignal.any([parent, AbortSignal.timeout(retrievalMs)]);
+  deadlines.set(signal, performance.now() + retrievalMs);
+
+  return signal;
+}
+
+export function remainingCatalogTime(signal?: AbortSignal) {
+  const deadline = signal && deadlines.get(signal);
+
+  return deadline === undefined ? retrievalMs : deadline - performance.now();
+}

@@ -225,13 +225,14 @@ async function completeAttempt(attempt: TurnAttempt, decision: IntentDecision) {
   signal.throwIfAborted();
   const assistant = assistantMessageSchema.parse({ parts });
   metrics.durationMs = attempt.elapsed();
+  const observed = metrics.firstVisibleMs;
   await repository.finish(
     id,
     turnId,
     attemptNumber,
     clock().toISOString(),
     assistant,
-    metrics,
+    { ...metrics, firstVisibleMs: observed ?? metrics.durationMs },
     decision,
   );
 
@@ -263,9 +264,10 @@ async function* streamTurnEvents(
   try {
     yield { type: "status", turnId, attempt, state: "running" };
     run.decision = await interpretTurn(run);
-    yield* streamTurnResponse(run, run.decision);
+    const finalResult = yield* streamTurnResponse(run, run.decision);
     const assistant = await completeAttempt(run, run.decision);
     settled = true;
+    yield finalResult;
     yield { type: "done", turnId, assistant };
   } catch (error) {
     const code = await recordAttemptError(run, failureCode(error));

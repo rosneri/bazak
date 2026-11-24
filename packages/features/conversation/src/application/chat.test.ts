@@ -302,8 +302,11 @@ test("only failed groups in the projected thread context can be retried", async 
   assert.equal(catalogCalls, 3);
 });
 
-test("closing a stream after the first cards marks the attempt interrupted", async () => {
-  const chat = setup();
+test("disconnecting after an earlier group leaves the attempt retryable", async () => {
+  const chat = setup({
+    decide: async () => ({ kind: "discover", searches: [fragranceSearch, fragranceSearch] }),
+  });
+
   const controller = new AbortController();
   const turnId = randomUUID();
   const stream = await chat.send("Two scents", turnId, controller.signal);
@@ -323,7 +326,7 @@ test("closing a stream after the first cards marks the attempt interrupted", asy
   assert.equal(chat.turns[0].attempt, 2);
 });
 
-test("a rejected completion produces a recoverable error after the preview", async () => {
+test("a rejected completion withholds the final card and produces a recoverable error", async () => {
   const chat = setup({
     storage: {
       async finish() {
@@ -333,10 +336,36 @@ test("a rejected completion produces a recoverable error after the preview", asy
   });
 
   const stream = await drain(chat.send("Two fragrances"));
-  assert.ok(stream.some((e) => e.type === "products"));
+  assert.equal(
+    stream.some((e) => e.type === "products"),
+    false,
+  );
   assert.equal(stream.at(-1)?.type, "error");
   assert.equal(
     stream.some((e) => e.type === "done"),
     false,
   );
+});
+
+test("disconnecting on the final card replays exactly the result already shown", async () => {
+  const chat = setup();
+  const turnId = randomUUID();
+  const controller = new AbortController();
+
+  for await (const event of await chat.send("Two scents", turnId, controller.signal)) {
+    if (event.type === "products") {
+      assert.equal(chat.turns[0].state, "completed");
+      assert.deepEqual(chat.turns[0].assistant?.parts, [event.part]);
+      controller.abort();
+      break;
+    }
+  }
+
+  const replay = await drain(chat.send("Two scents", turnId));
+  assert.deepEqual(
+    replay.map((event) => event.type),
+    ["status", "done"],
+  );
+  assert.equal(chat.turns.length, 1);
+  assert.equal(chat.turns[0].attempt, 1);
 });

@@ -106,7 +106,7 @@ export const attemptMetricsSchema = z
       .describe("Ordered inputs captured during this attempt, when instrumented."),
     providerUrls: z
       .array(z.httpUrl().describe("Exact URL passed to the catalog GET request."))
-      .max(9)
+      .max(18)
       .optional()
       .describe("Catalog HTTP GET attempts in dispatch order, when recorded."),
     modelProposal: z
