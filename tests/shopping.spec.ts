@@ -238,7 +238,13 @@ test("loopback pages enforce a fresh script nonce and render imported evidence a
   await expect(page.getByRole("heading", { name: evidence })).toBeVisible();
   await expect(page.locator("blockquote")).toHaveText(evidence);
   await page.getByText("Expected labels and observed evidence").click();
-  await expect(page.locator("pre")).toContainText(evidence);
+  const comparison = page.getByRole("table", { name: "Comparable fields" });
+  await expect(comparison.getByRole("columnheader")).toHaveText(["Expected", "Observed"]);
+  await expect(
+    comparison.locator('td[data-change="−"]').filter({ hasText: '"intent": "discover"' }),
+  ).toBeVisible();
+  await page.getByText("Full recorded evidence", { exact: true }).click();
+  await expect(page.getByRole("table", { name: "Full recorded evidence" })).toContainText(evidence);
   await expect(page.locator("[data-evidence-marker]")).toHaveCount(0);
 });
 

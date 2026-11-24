@@ -1,13 +1,14 @@
+import { EvidenceDiff } from "./evidence-diff";
 import Link from "next/link";
 import type { EvaluationResult } from "@bazak/evaluations";
-import { metrics, formatDuration, formatMetricOutcome } from "./evaluation-metrics";
+import { metricsFor, formatDuration, formatMetricOutcome } from "./evaluation-metrics";
 
 function CaseMetrics({ result }: { result: EvaluationResult }) {
   const { expected, actual } = result;
 
   return (
     <dl className="evidence-grid">
-      {metrics.map((metric) => (
+      {metricsFor(result.profile).map((metric) => (
         <div key={metric.key}>
           <dt>{metric.label}</dt>
           <dd>{formatMetricOutcome(result[metric.key])}</dd>
@@ -43,16 +44,41 @@ function CaseMetrics({ result }: { result: EvaluationResult }) {
   );
 }
 
-export function CaseEvidence({ result }: { result: EvaluationResult }) {
-  const { expected, actual } = result;
+function ConversationTurns({
+  result,
+  rows,
+}: {
+  result: EvaluationResult;
+  rows: EvaluationResult[];
+}) {
+  const conversation = result.expected.conversation;
+
+  if (!conversation) return null;
 
   return (
-    <section id="evidence" aria-labelledby="case-heading" className="evidence">
-      <div className="section-heading">
-        <h2 id="case-heading">{result.caseName}</h2>
-        <Link href={`/?run=${result.runId}`}>Close evidence</Link>
-      </div>
-      <blockquote>{expected.prompt}</blockquote>
+    <nav aria-label="Conversation turns">
+      <h3>{conversation}</h3>
+      <ol>
+        {rows
+          .filter((row) => row.expected.conversation === conversation)
+          .map((row) => (
+            <li key={row.id}>
+              <Link
+                href={`/?run=${row.runId}&case=${row.id}#evidence`}
+                aria-current={row.id === result.id ? "step" : undefined}
+              >
+                {row.expected.prompt}
+              </Link>
+            </li>
+          ))}
+      </ol>
+    </nav>
+  );
+}
+
+function SetupPrompts({ expected }: Pick<EvaluationResult, "expected">) {
+  return (
+    <>
       {expected.priorChat && (
         <p>
           <strong>Earlier chat</strong> {expected.priorChat}
@@ -63,6 +89,28 @@ export function CaseEvidence({ result }: { result: EvaluationResult }) {
           <strong>Earlier turn</strong> {expected.priorTurn}
         </p>
       )}
+    </>
+  );
+}
+
+export function CaseEvidence({
+  result,
+  rows,
+}: {
+  result: EvaluationResult;
+  rows: EvaluationResult[];
+}) {
+  const { expected, actual } = result;
+
+  return (
+    <section id="evidence" aria-labelledby="case-heading" className="evidence">
+      <div className="section-heading">
+        <h2 id="case-heading">{result.caseName}</h2>
+        <Link href={`/?run=${result.runId}`}>Close evidence</Link>
+      </div>
+      <ConversationTurns result={result} rows={rows} />
+      <blockquote>{expected.prompt}</blockquote>
+      <SetupPrompts expected={expected} />
       <CaseMetrics result={result} />
       {result.detail && <p role="status">{result.detail}</p>}
       {actual.groups.map((group) => (
@@ -83,10 +131,7 @@ export function CaseEvidence({ result }: { result: EvaluationResult }) {
           )}
         </div>
       ))}
-      <details>
-        <summary>Expected labels and observed evidence</summary>
-        <pre>{JSON.stringify({ expected, actual }, null, 2)}</pre>
-      </details>
+      <EvidenceDiff result={result} />
     </section>
   );
 }

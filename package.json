@@ -24,6 +24,8 @@
     "db:generate": "pnpm --filter @bazak/evaluation-store exec prisma generate",
     "db:studio": "pnpm --filter @bazak/evaluation-store exec prisma studio",
     "evaluate": "tsx scripts/evaluate.ts",
+    "evaluate:model": "tsx scripts/evaluate-model.ts",
+    "evaluate:harness": "tsx scripts/evaluate-harness.ts",
     "evaluate:live": "tsx scripts/evaluate-live.ts",
     "evaluate:import": "tsx packages/adapters/evaluation-store/src/import.ts",
     "test": "moon run :test",

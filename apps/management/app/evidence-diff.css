@@ -1,0 +1,44 @@
+.diff-scroll {
+  overflow: auto;
+  max-height: 32rem;
+  border: 1px solid var(--report-rule);
+}
+
+.split-diff {
+  table-layout: fixed;
+}
+
+.split-diff th {
+  position: sticky;
+  top: 0;
+  background: var(--report-sheet);
+  z-index: 1;
+  font-weight: 600;
+}
+
+.split-diff td {
+  padding: 0.16rem 0.45rem;
+  border-bottom: 0;
+  vertical-align: top;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 0.8rem/1.45 var(--report-figures);
+}
+
+.split-diff :is(td, th) + :is(td, th) {
+  border-inline-start: 1px solid var(--report-rule);
+}
+
+.split-diff [data-change="−"] {
+  background: light-dark(#fbe1e4, #48262d);
+}
+
+.split-diff [data-change="+"] {
+  background: light-dark(#ddf2e4, #183b2b);
+}
+
+.diff-sign {
+  display: inline-block;
+  width: 1.2em;
+  font-weight: bold;
+}

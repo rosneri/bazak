@@ -1,3 +1,4 @@
+import { RunEvaluationsForm } from "./run-evaluations-form";
 import Link from "next/link";
 import { z } from "zod";
 import { Button } from "@bazak/ui/components/button";
@@ -16,7 +17,13 @@ const date = new Intl.DateTimeFormat("en-GB", {
   timeZone: "UTC",
 });
 
-const profileLabel = (profile: string) => (profile === "fixture" ? "Fixture" : "Production");
+const profileLabel = (profile: string) =>
+  ({
+    fixture: "Fixture",
+    production: "Production",
+    model: "AI model",
+    harness: "Application harness",
+  })[profile] ?? profile;
 
 interface PageProps {
   searchParams: Promise<{ run?: string | string[]; case?: string | string[] }>;
@@ -29,13 +36,22 @@ function RunPicker({ runs, currentRunId }: { runs: RecordedRuns; currentRunId?: 
     <div className="page-heading">
       <div>
         <h1>Evaluation runs</h1>
-        <p className="muted">Saved scores and response timings for the shopping copilot.</p>
+        <p className="muted">
+          Run fixture, application harness, production and AI model evaluations. Production and AI
+          model runs use the configured API.
+        </p>
+        <RunEvaluationsForm />
       </div>
       {runs.length > 0 && (
         <form method="get">
           <label htmlFor="run">Recorded run</label>
           <div className="control-row">
-            <select id="run" name="run" defaultValue={currentRunId ?? runs[0].runId}>
+            <select
+              key={currentRunId}
+              id="run"
+              name="run"
+              defaultValue={currentRunId ?? runs[0].runId}
+            >
               {runs.map((run) => (
                 <option key={run.runId} value={run.runId}>
                   {profileLabel(run.profile)}, {date.format(run.recordedAt ?? 0)} UTC
@@ -76,10 +92,7 @@ function EmptyReport({ hasRuns }: { hasRuns: boolean }) {
       {hasRuns ? (
         <Link href="/">Open the latest run</Link>
       ) : (
-        <p>
-          From the repository root, run <code>pnpm evaluate</code> to record a labeled fixture
-          suite. Then reload this page.
-        </p>
+        <p>Run evaluations to see the first reports here.</p>
       )}
     </div>
   );
@@ -136,7 +149,7 @@ export default async function EvaluationRunsPage({ searchParams }: PageProps) {
             <h2>Case results</h2>
           </div>
           <CaseResultsTable rows={rows} selected={selected} />
-          {selected && <CaseEvidence result={selected} />}
+          {selected && <CaseEvidence result={selected} rows={rows} />}
         </>
       )}
     </>

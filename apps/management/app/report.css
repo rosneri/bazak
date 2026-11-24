@@ -328,3 +328,7 @@ thead .number {
 .control-row select {
   min-height: 2.75rem;
 }
+
+.run-evaluations {
+  margin-top: 1rem;
+}

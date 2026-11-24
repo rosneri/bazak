@@ -17,7 +17,7 @@ const check = z
   .describe("True for a satisfied check, false for a disagreement, null when unscored.");
 
 export const profileSchema = z
-  .enum(["fixture", "production"])
+  .enum(["fixture", "production", "model", "harness"])
   .describe("Which service composition executed the labeled prompt.");
 
 export const observationSchema = z

@@ -23,7 +23,10 @@ import {
 } from "../packages/features/evaluation/src/domain/result.ts";
 import { observe, score } from "../packages/features/evaluation/src/application/evaluate.ts";
 
-type Factory = (repository: ReturnType<typeof createConversationRepository>) => ShopperServices;
+type Factory = (
+  repository: ReturnType<typeof createConversationRepository>,
+  example: EvaluationCase,
+) => ShopperServices;
 
 async function sendAndReloadTurn(
   services: ShopperServices,
@@ -124,8 +127,17 @@ function scoredResult(
     ...timing,
     actual,
     outcome: "observed",
-    ...score(base.expected, actual),
+    ...score(base.expected, actual, base.profile),
   });
+}
+
+function evaluationThread(expected: EvaluationCase, threads: Map<string, string>) {
+  const previous = expected.conversation && threads.get(expected.conversation);
+  const threadId = previous || randomUUID();
+
+  if (expected.conversation) threads.set(expected.conversation, threadId);
+
+  return { threadId, previous };
 }
 
 export async function executeCase(
@@ -133,17 +145,23 @@ export async function executeCase(
   runId: string,
   profile: Profile,
   example: EvaluationCase,
+  threads = new Map<string, string>(),
 ) {
   const expected = caseSchema.parse(example);
-  const services = factory(createConversationRepository(`evaluation/${runId}/${expected.name}`));
-  const threadId = randomUUID();
+
+  const services = factory(
+    createConversationRepository(`evaluation/${runId}/${expected.conversation ?? expected.name}`),
+    expected,
+  );
+
+  const { threadId, previous } = evaluationThread(expected, threads);
   let startedAt = Date.now();
   let detail = "Could not execute this case. Check local storage and the service configuration.";
   const measured: UsageSummary[] = [];
   const base = { id: randomUUID(), runId, caseName: expected.name, profile, expected };
 
   try {
-    await prepareEvaluationThread(services, threadId, expected, measured);
+    if (!previous) await prepareEvaluationThread(services, threadId, expected, measured);
     startedAt = Date.now();
 
     const { turn, diagnostic } = await sendAndReloadTurn(
@@ -172,21 +190,29 @@ export async function executeCase(
   }
 }
 
-export async function runSuite(factory: Factory, profile: Profile, examples: EvaluationCase[]) {
+export async function recordSuite(factory: Factory, profile: Profile, examples: EvaluationCase[]) {
   const runId = randomUUID();
   const results: EvaluationResult[] = [];
 
-  try {
-    for (const example of examples) {
-      // oxlint-disable-next-line no-await-in-loop -- Serial turns keep measured latencies independent of competing evaluation work.
-      const result = await executeCase(factory, runId, profile, example);
-      results.push(result);
-      console.log(
-        `${evaluationPassed(result) ? "Passed" : result.outcome === "observed" ? "Disagreed" : "Execution error"} | ${result.caseName} | first ${result.firstOutputMs ?? "—"} ms | total ${result.durationMs} ms`,
-      );
-    }
+  const threads = new Map<string, string>();
 
-    await saveResults(results);
+  for (const example of examples) {
+    // oxlint-disable-next-line no-await-in-loop -- Serial turns keep measured latencies independent of competing evaluation work.
+    const result = await executeCase(factory, runId, profile, example, threads);
+    results.push(result);
+    console.log(
+      `${evaluationPassed(result) ? "Passed" : result.outcome === "observed" ? "Disagreed" : "Execution error"} | ${result.caseName} | first ${result.firstOutputMs ?? "—"} ms | total ${result.durationMs} ms`,
+    );
+  }
+
+  await saveResults(results);
+
+  return { runId, results };
+}
+
+export async function runSuite(factory: Factory, profile: Profile, examples: EvaluationCase[]) {
+  try {
+    const { runId, results } = await recordSuite(factory, profile, examples);
     console.log("Run usage: " + evaluationUsage(results));
     console.log(`Saved ${profile} run ${runId} at http://127.0.0.1:3002/?run=${runId}`);
 

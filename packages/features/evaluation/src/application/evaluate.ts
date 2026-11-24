@@ -1,10 +1,19 @@
 import type { ResultGroup, Turn } from "@bazak/conversation/domain/turn";
 import type { EvaluationCase } from "@bazak/evaluations/cases";
-import type { Observation } from "@bazak/evaluations";
+import { isDeepStrictEqual } from "node:util";
+import type { Observation, Profile } from "@bazak/evaluations";
 
-function groupMatches(expected: EvaluationCase["groups"][number], group: ResultGroup) {
-  if (group.criteria?.category !== expected.category || group.products.length !== expected.count)
-    return false;
+function groupMatches(
+  expected: EvaluationCase["groups"][number],
+  group: ResultGroup,
+  categoryRequired: boolean,
+) {
+  if (expected.guidance) return group.kind === expected.guidance && group.products.length === 0;
+
+  if (group.products.length !== expected.count) return false;
+  const category = group.criteria?.category;
+
+  if ((categoryRequired || category) && category !== expected.category) return false;
 
   if (expected.count === 0) return group.kind === "empty" && group.coverage === "exhaustive";
 
@@ -52,8 +61,20 @@ export function observe(turn: Turn): Observation {
   return { decision: turn.decision, groups, metrics: turn.metrics };
 }
 
-export function score(expected: EvaluationCase, actual: Observation) {
-  const intentMatch = actual.decision?.kind === expected.intent;
+function proposalMatches(expected: EvaluationCase, actual: Observation) {
+  try {
+    return isDeepStrictEqual(
+      expected.proposal,
+      JSON.parse(actual.metrics?.modelProposal ?? "null"),
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function score(expected: EvaluationCase, actual: Observation, profile?: Profile) {
+  const routed = actual.decision?.kind === expected.intent;
+  const intentMatch = profile === "model" ? proposalMatches(expected, actual) : routed;
   const abstain = expected.intent === "clarify" || expected.intent === "off-catalog";
   const plannerMatches = actual.metrics?.plannerCalls === expected.plannerCalls;
 
@@ -68,14 +89,24 @@ export function score(expected: EvaluationCase, actual: Observation) {
   const constraintsSatisfied = abstain
     ? null
     : Boolean(
+        routed &&
         plannerMatches &&
         queryMatches &&
         actual.groups.length === expected.groups.length &&
-        expected.groups.every((group, index) => groupMatches(group, actual.groups[index])),
+        expected.groups.every((group, index) => {
+          const proposal = expected.proposal;
+          const search = proposal?.kind === "discover" && proposal.searches[index];
+
+          const categoryRequired =
+            expected.intent !== "detail" &&
+            !(search && search.kind === "search" && !search.criteria.category);
+
+          return groupMatches(group, actual.groups[index], categoryRequired);
+        }),
       );
 
   const correctAbstention = abstain
-    ? intentMatch &&
+    ? routed &&
       plannerMatches &&
       actual.metrics?.catalogCalls === 0 &&
       actual.groups.every((group) => group.products.length === 0)

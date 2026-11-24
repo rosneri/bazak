@@ -202,7 +202,7 @@ function interpret({ text, history }: ModelInput): ModelDecision {
   return { kind: "discover", searches: groups };
 }
 
-const fixtureUsage = {
+export const fixtureUsage = {
   model: "fixture",
   input: 0,
   output: 0,

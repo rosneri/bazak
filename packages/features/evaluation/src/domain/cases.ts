@@ -1,10 +1,15 @@
+import { modelDecisionSchema } from "@bazak/conversation/application/chat";
 import { z } from "zod";
 
 const label = z.string().trim().min(1).describe("A nonempty review label.");
 
 const productGroupLabelSchema = z
   .strictObject({
-    category: label.describe("Category expected for this result group."),
+    category: label.nullable().describe("Expected product category, or null for a guidance group."),
+    guidance: z
+      .enum(["clarify", "off-catalog"])
+      .optional()
+      .describe("Expected guidance for one non-search group."),
     count: z.int().min(0).max(10).describe("Exact expected number of visible matching products."),
     ids: z
       .array(label)
@@ -25,12 +30,20 @@ const productGroupLabelSchema = z
       .optional()
       .describe("Expected first result when the ranking has a specific winner."),
   })
+  .refine(
+    (group) =>
+      group.guidance ? group.category === null && group.count === 0 : group.category !== null,
+    "Guidance groups have no category or products.",
+  )
   .describe("Independent relevance, stock, count, budget and ordering labels for a result group.");
 
 export const caseSchema = z
   .strictObject({
     name: label.describe("Reviewer-facing case name."),
     prompt: label.describe("Final user message sent to the service."),
+    conversation: label
+      .optional()
+      .describe("Ordered scenario whose turns share one conversation in this run."),
     priorChat: label
       .optional()
       .describe("Optional evidence seeded through the service in a different conversation."),
@@ -38,6 +51,13 @@ export const caseSchema = z
     intent: z
       .enum(["discover", "clarify", "off-catalog", "detail"])
       .describe("Independently assigned expected intent."),
+    proposal: modelDecisionSchema
+      .optional()
+      .describe("Labeled raw intent proposal, before application routing."),
+    failFirstLookup: z
+      .literal(true)
+      .optional()
+      .describe("Fail the first fixture catalog page to seed a retryable group."),
     groups: z
       .array(productGroupLabelSchema)
       .describe("Expected result groups in original request order."),

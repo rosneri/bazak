@@ -15,11 +15,11 @@ pnpm db:up
 
 The last two commands generate Prisma's client and start PostgreSQL with the checked-in migrations. Keep PostgreSQL running for both apps.
 
-| To run                            | Commands from the root                                             | Open                                     |
-| --------------------------------- | ------------------------------------------------------------------ | ---------------------------------------- |
-| Fixture demo, no credentials      | `pnpm build:fixture`, then `pnpm start:fixture`                    | [Shopper](http://127.0.0.1:3000)         |
-| Shopper with OpenAI and DummyJSON | `pnpm dev`                                                         | [Shopper](http://127.0.0.1:3000)         |
-| Evaluation report                 | `pnpm evaluate`, then `pnpm dev:management` in a separate terminal | [Evaluation runs](http://127.0.0.1:3002) |
+| To run                            | Commands from the root                                 | Open                                     |
+| --------------------------------- | ------------------------------------------------------ | ---------------------------------------- |
+| Fixture demo, no credentials      | `pnpm build:fixture`, then `pnpm start:fixture`        | [Shopper](http://127.0.0.1:3000)         |
+| Shopper with OpenAI and DummyJSON | `pnpm dev`                                             | [Shopper](http://127.0.0.1:3000)         |
+| Evaluation report                 | `pnpm dev:management`, then select **Run evaluations** | [Evaluation runs](http://127.0.0.1:3002) |
 
 Choose one shopper process on port 3000. For live requests, set `OPENAI_API_KEY` in the server environment or in a private, gitignored `.env` at the workspace root. The first inference reads it. Building, opening history and using the fixture work without credentials. For production builds run `pnpm build`, then `pnpm start` and `pnpm start:management` in separate terminals. Next resolves a static service alias to the live or fixture implementation during the build. Their outputs are `.next` and `.next-fixture`.
 
@@ -65,7 +65,9 @@ A full or unavailable database can prevent even the failure state from being wri
 | `pnpm check`                           | OpenAPI generation drift, formatting, lint, TypeScript, React Doctor, Hallmark, Compose configuration, package tests, production builds and the database/browser journey.                                                                                                              |
 | `pnpm evaluate` / `pnpm evaluate:live` | Record the nine-case fixture suite or the two-case live suite. The live suite consumes assignment API usage. Each command prints a management URL for its run.                                                                                                                         |
 
-The integration and browser scripts create, migrate and drop a disposable database. The browser check needs installed Google Chrome and free ports 3174 and 3175. Each labeled case has its own history scope. The report shows the expected labels alongside observed decisions, queries and products. Execution errors and unscored dimensions are reported separately from semantic disagreements.
+Use `pnpm evaluate:harness` for scripted application evaluations and `pnpm evaluate:model` for the same search scenarios with the live model and a fixed catalog. Both include individually scored multi-turn conversations. The dashboard runs these alongside the fixture and production suites.
+
+The integration and browser scripts create, migrate and drop a disposable database. The browser check needs installed Google Chrome and free ports 3174 and 3175. Each standalone case or multi-turn scenario has its own history scope. The report shows the expected labels alongside observed decisions, queries and products. Execution errors and unscored dimensions are reported separately from semantic disagreements.
 
 On 23 November 2026, one fresh PostgreSQL fixture run passed **9/9 cases**. Intent matched **9/9**, product constraints **7/7**, and abstention with zero catalog lookups **2/2**. First content took **6–28 ms**, total **7–32 ms**.
 
