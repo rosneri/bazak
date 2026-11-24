@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "worker": "pnpm --filter @bazak/worker start",
     "dev": "pnpm --filter @bazak/web dev",
     "build": "moon run :build",
     "start": "pnpm --filter @bazak/web start",

@@ -21,6 +21,8 @@ The last two commands generate Prisma's client and start PostgreSQL with the che
 | Shopper with OpenAI and DummyJSON | `pnpm dev`                                             | [Shopper](http://127.0.0.1:3000)         |
 | Evaluation report                 | `pnpm dev:management`, then select **Run evaluations** | [Evaluation runs](http://127.0.0.1:3002) |
 
+Run `pnpm worker` in a separate terminal to recover expired shopper attempts automatically. For the fixture demo run `SHOPPER_BUILD_PROFILE=fixture pnpm worker`. See the [worker recovery policy](apps/worker/README.md).
+
 Choose one shopper process on port 3000. For live requests, set `OPENAI_API_KEY` in the server environment or in a private, gitignored `.env` at the workspace root. The first inference reads it. Building, opening history and using the fixture work without credentials. For production builds run `pnpm build`, then `pnpm start` and `pnpm start:management` in separate terminals. Next resolves a static service alias to the live or fixture implementation during the build. Their outputs are `.next` and `.next-fixture`.
 
 Compose binds PostgreSQL to loopback port 55432 by default. Export matching `POSTGRES_PORT` and `POSTGRES_PASSWORD` to the processes if overriding the initial Compose settings. The Prisma adapter also accepts `DATABASE_URL`. Both apps and the evaluation runner need the same database to share results. `pnpm db:down` stops Compose and preserves the named volume.

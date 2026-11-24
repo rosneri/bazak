@@ -36,7 +36,7 @@ run("docker", [...compose, "createdb", "-U", "bazak", name]);
 try {
   run("pnpm", ["db:migrate"], env);
 
-  if (task !== "browser")
+  if (task !== "browser") {
     run(
       "pnpm",
       [
@@ -47,6 +47,9 @@ try {
       ],
       env,
     );
+
+    run("bun", ["test", "apps/worker/test/recovery.integration.test.ts"], env);
+  }
 
   if (task !== "integration") {
     run("pnpm", ["build:fixture"], env);

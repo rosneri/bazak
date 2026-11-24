@@ -41,20 +41,22 @@ model ShoppingThread {
 }
 
 model ShoppingTurn {
-  threadId  String          @db.Uuid
-  thread    ShoppingThread  @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  turnId    String          @db.Uuid
-  ordinal   Int
-  text      String
-  state     TurnState
-  attempt   Int
-  assistant Json?
-  decision  Json?
-  attempts  TurnAttempt[]
-  searches  SearchEvidence[]
+  threadId        String           @db.Uuid
+  thread          ShoppingThread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  turnId          String           @db.Uuid
+  ordinal         Int
+  text            String
+  state           TurnState
+  attempt         Int
+  recoveryPending Boolean          @default(false)
+  assistant       Json?
+  decision        Json?
+  attempts        TurnAttempt[]
+  searches        SearchEvidence[]
 
   @@id([threadId, turnId])
   @@unique([threadId, ordinal])
+  @@index([recoveryPending, threadId, ordinal])
 }
 
 enum TurnState {
@@ -76,15 +78,16 @@ model TurnAttempt {
   metrics   Json?
 
   @@id([threadId, turnId, number])
+  @@index([state, cutoff])
 }
 
 model SearchEvidence {
-  threadId  String       @db.Uuid
-  turnId    String       @db.Uuid
-  category  String
-  criteria  Json
-  endedAt   DateTime     @db.Timestamptz(3)
-  turn      ShoppingTurn @relation(fields: [threadId, turnId], references: [threadId, turnId], onDelete: Cascade)
+  threadId String       @db.Uuid
+  turnId   String       @db.Uuid
+  category String
+  criteria Json
+  endedAt  DateTime     @db.Timestamptz(3)
+  turn     ShoppingTurn @relation(fields: [threadId, turnId], references: [threadId, turnId], onDelete: Cascade)
 
   @@id([threadId, turnId, category])
   @@index([category, endedAt])

@@ -1,6 +1,10 @@
 {
   "name": "@bazak/web",
   "private": true,
+  "exports": {
+    "./fixture-services": "./src/server/services.test.ts",
+    "./production-services": "./src/server/services.production.ts"
+  },
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
     "build": "next build",

@@ -5,6 +5,7 @@
   "exports": {
     ".": "./src/results.ts",
     "./conversations": "./src/conversations.ts",
+    "./recovery": "./src/recovery.ts",
     "./client": "./src/client.ts"
   },
   "scripts": {
