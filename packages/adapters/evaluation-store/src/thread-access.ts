@@ -41,7 +41,7 @@ export async function interruptExpiredTurn(tx: Transaction, threadId: string, no
   });
   await tx.shoppingTurn.update({
     where: { threadId_turnId: { threadId, turnId } },
-    data: { state: "interrupted" },
+    data: { state: "interrupted", recoveryPending: active.attempt < 3 },
   });
   await tx.shoppingThread.update({ where: { id: threadId }, data: { updatedAt: attempt.cutoff } });
 }

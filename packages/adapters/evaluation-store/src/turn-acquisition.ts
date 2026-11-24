@@ -102,6 +102,7 @@ export async function acquireRetry(
     where,
     data: {
       attempt: number,
+      recoveryPending: false,
       state: "running",
       decision: Prisma.DbNull,
       attempts: {

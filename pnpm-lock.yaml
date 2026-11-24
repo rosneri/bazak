@@ -316,6 +316,25 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
+  apps/worker:
+    dependencies:
+      '@bazak/conversation':
+        specifier: workspace:*
+        version: link:../../packages/features/conversation
+      '@bazak/evaluation-store':
+        specifier: workspace:*
+        version: link:../../packages/adapters/evaluation-store
+      '@bazak/web':
+        specifier: workspace:*
+        version: link:../web
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.2
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
   packages/adapters/dummyjson:
     dependencies:
       '@bazak/product-discovery':

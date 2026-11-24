@@ -1,0 +1,18 @@
+{
+  "name": "@bazak/worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun src/main.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bazak/conversation": "workspace:*",
+    "@bazak/evaluation-store": "workspace:*",
+    "@bazak/web": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "7.0.2"
+  }
+}
