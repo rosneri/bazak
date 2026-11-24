@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { FormEvent } from "react";
+import { ThemeSwitch } from "@bazak/ui/components/theme-switch";
 import { Button } from "@bazak/ui/components/button";
 import { useShoppingSession } from "../client/chat-session";
 import { ConversationPane, useTranscriptScroll } from "./conversation-pane";
@@ -54,6 +55,7 @@ function ShoppingHeader({ menu, toggleMenu }: { menu: boolean; toggleMenu: () =>
       </Link>
       <span className="mast-divider" />
       <span className="mast-title">Shopping desk</span>
+      <ThemeSwitch />
       <Button
         variant="outline"
         className="history-toggle"
