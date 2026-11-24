@@ -1,6 +1,6 @@
 # Bazak local delivery handoff · 23 November 2026
 
-The shopper, evaluation runner and management dashboard are implemented. The [README](README.md) covers setup, framework trade-offs, API choices and known limits. The [current architecture](docs/architecture.md) maps the running services and eight shopper journeys. The [drift report](docs/2026-11-23_DRIFT_REPORT.md) compares the repository with the design documents.
+The shopper, evaluation runner and management dashboard are implemented. The [README](README.md) covers setup, framework trade-offs, API choices and known limits. The [current architecture](docs/architecture.md) maps the running services and eight shopper journeys.
 
 ## Verified
 

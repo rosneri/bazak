@@ -1,6 +1,6 @@
 # Shopping copilot architecture
 
-The shopper app serves chat and the evaluation app reads run evidence. Both use local PostgreSQL. Production and fixture builds of the shopper share the same conversation, discovery and storage code. The [delivery plan](delivery-plan.md) preserves the design inputs and the [standalone HTML diagram](architecture.html) includes the original drawings in a historical section.
+The shopper app serves chat and the evaluation app reads run evidence. Both use local PostgreSQL. Production and fixture builds of the shopper share the same conversation, discovery and storage code. The [interactive architecture diagrams](architecture.html) show the shopper journeys, domain model and service boundaries.
 
 For the path from Send to a saved answer, see the [four message-flow diagrams](message-flow.md), including first routing, AI calls and a follow-up against a displayed product.
 
